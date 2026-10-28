@@ -120,8 +120,31 @@ static gui_image bg_filesel[15] =
   {NULL,NULL,0,392,118,232,148,255},
   {NULL,NULL,0,414,116,184,188,255},
   {NULL,NULL,0,416,144,180,228,255},
-  {NULL,NULL,0,388,147,240,152,255}
+  {NULL,NULL,0,386,140,247,166,255}
 };
+
+/* Screenshot area (bg_filesel[7] and [8]): the label of the cartridge, smaller
+   on the 32X one (next to the yellow band of its label) */
+#define SNAP_X 424
+#define SNAP_Y 148
+#define SNAP_W 160
+#define SNAP_H 112
+#define SNAP_32X_X (386 + 64)
+#define SNAP_32X_Y (140 + 15)
+#define SNAP_32X_W 144
+#define SNAP_32X_H 96
+
+static void set_snap_area(int type)
+{
+  int i;
+  for (i = 7; i <= 8; i++)
+  {
+    bg_filesel[i].x = (type == FILETYPE_32X) ? SNAP_32X_X : SNAP_X;
+    bg_filesel[i].y = (type == FILETYPE_32X) ? SNAP_32X_Y : SNAP_Y;
+    bg_filesel[i].w = (type == FILETYPE_32X) ? SNAP_32X_W : SNAP_W;
+    bg_filesel[i].h = (type == FILETYPE_32X) ? SNAP_32X_H : SNAP_H;
+  }
+}
 
 static const u8 *Cart_png[FILETYPE_MAX] =
 {
@@ -153,7 +176,7 @@ static gui_menu menu_selector =
 {
   "Game Selection",
   -1,-1,
-  0,0,14,0,
+  0,0,15,0,
   NULL,
   NULL,
   bg_filesel,
@@ -285,6 +308,7 @@ int FileSelector(int type)
     bg_filesel[9+i].data = NULL;
     bg_filesel[9+i].state  &= ~IMAGE_VISIBLE;
   }
+  set_snap_area(-1);
 
   /* System ROM selection */
   if (type >= FILETYPE_MAX)
@@ -441,6 +465,7 @@ int FileSelector(int type)
     /* Select cartridge type */
     bg_filesel[9 + type].data = Cart_png[type];
     bg_filesel[9 + type].state |= IMAGE_VISIBLE;
+    set_snap_area(type);
 
     /* Get current directory */
     char *dir = GetCurrentDirectory();
@@ -510,6 +535,7 @@ int FileSelector(int type)
 
             /* show selected cartridge label */
             bg_filesel[9 + type].state |= IMAGE_VISIBLE;
+            set_snap_area(type);
           }
 
           /* default screenshot file path */

@@ -28,7 +28,7 @@ jobs:
         git remote add origin "$PICODRIVE_REPO"
         git fetch -q --depth 1 origin "$PICODRIVE_COMMIT"
         git checkout -q FETCH_HEAD
-        git submodule update -q --init --depth 1 pico/cd/libchdr pico/sound/emu2413 platform/common/dr_libs
+        git submodule update -q --init --depth 1 pico/cd/libchdr pico/sound/emu2413 platform/common/dr_libs platform/libpicofe
         git log -1 --format='PicoDrive %h %cd'
 
     # STATIC_LINKING=0: the libretro-common files (file streams, paths) go

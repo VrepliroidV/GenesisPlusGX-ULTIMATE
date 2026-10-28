@@ -417,7 +417,7 @@ static gui_item items_system[] =
   {NULL,NULL,"Sub 68k Overclock: 3.0x",    "Adjust Sega CD / Mega-CD CPU clock speed",    56,132,276,48},
   {NULL,NULL,"Sub 68k Auto Overclock: OFF", "Overclock only when the game slows down",    56,132,276,48},
   {NULL,NULL,"Z80 Overclock: 3.0x",        "Adjust Z80 CPU clock speed",                  56,132,276,48},
-  {NULL,NULL,"32X Settings",               "Settings of the 32X emulation (PicoDrive)",   56,132,276,48},
+  {NULL,NULL,"32X Settings",               "Settings of the 32X emulation",               56,132,276,48},
   {NULL,NULL,"SVP Cycles: 1500",           "Adjust SVP chip emulation speed",             56,132,276,48}
 };
 

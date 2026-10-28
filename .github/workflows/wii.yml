@@ -58,6 +58,9 @@ jobs:
         if ls music/*.ogg >/dev/null 2>&1; then cp music/*.ogg dist/genplusultimate/music/; else touch dist/genplusultimate/music/musicdir; fi
         cp genplus_wii.dol dist/apps/genplusultimate/boot.dol
         cp gx/hbc/meta.xml gx/hbc/icon.png LICENSE.txt dist/apps/genplusultimate/
+        # Sega 32X: PicoDrive's license and authors
+        cp picodrive/COPYING dist/apps/genplusultimate/PICODRIVE_LICENSE.txt
+        cp picodrive/AUTHORS dist/apps/genplusultimate/PICODRIVE_AUTHORS.txt
 
     - name: Upload Wii build
       uses: actions/upload-artifact@v4

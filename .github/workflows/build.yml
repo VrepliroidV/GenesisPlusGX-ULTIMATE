@@ -1,0 +1,78 @@
+name: 32X Test Wii Build
+
+on:
+  push:
+  workflow_dispatch:
+
+env:
+  # PicoDrive (irixxxx) at a known commit
+  PICODRIVE_REPO: https://github.com/irixxxx/picodrive
+  PICODRIVE_COMMIT: 07abb00550528f7bf53087d932dd3d747cf2d0df
+
+jobs:
+  build:
+    name: Build 32X Test
+    runs-on: ubuntu-latest
+    container: devkitpro/devkitppc:20251231
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Get PicoDrive
+      shell: bash
+      run: |
+        command -v git >/dev/null || (apt-get update && apt-get install -y --no-install-recommends git ca-certificates)
+        git config --global --add safe.directory '*'
+        git init -q picodrive
+        cd picodrive
+        git remote add origin "$PICODRIVE_REPO"
+        git fetch -q --depth 1 origin "$PICODRIVE_COMMIT"
+        git checkout -q FETCH_HEAD
+        git submodule update -q --init --depth 1 pico/cd/libchdr pico/sound/emu2413 platform/common/dr_libs
+        git log -1 --format='PicoDrive %h %cd'
+
+    # STATIC_LINKING=0: the libretro-common files (file streams, paths) go
+    # into the archive too, since there is no RetroArch to provide them
+    - name: Build the PicoDrive core
+      shell: bash
+      run: |
+        set -o pipefail
+        if ! make -C picodrive -f Makefile.libretro platform=wii STATIC_LINKING=0 STATIC_LINKING_LINK=1 -j4 2>&1 | tee core.log; then
+          msg=$(grep -E -B1 "error:|Error [0-9]|undefined reference|cannot find|No such file|not found" core.log | grep -v "^--$" | awk '!seen[$0]++' | head -n 120 | sed -e 's/%/%25/g' -e 's/\r//g' | awk '{printf "%s%%0A", $0}')
+          echo "::error title=Core build failed::$msg"
+          exit 1
+        fi
+        grep -c 'emit_ppc\|compiler.o' core.log || true
+        ls -l picodrive/*.a
+
+    - name: Build the app
+      shell: bash
+      run: |
+        set -o pipefail
+        if ! make -j2 2>&1 | tee app.log; then
+          msg=$(grep -E -B1 "error:|Error [0-9]|undefined reference|cannot find|No such file|not found|multiple definition" app.log | grep -v "^--$" | awk '!seen[$0]++' | head -n 150 | sed -e 's/%/%25/g' -e 's/\r//g' | awk '{printf "%s%%0A", $0}')
+          echo "::error title=App build failed::$msg"
+          exit 1
+        fi
+        nm=/opt/devkitpro/devkitPPC/bin/powerpc-eabi-nm
+        end=$($nm 32xtest.elf | awk '($3 == "_end" || $3 == "__bss_end") && !e { e = $1 } END { print e }')
+        drc=$($nm 32xtest.elf | grep -c ' sh2_drc_' || true)
+        echo "::notice title=Build::end of static data 0x$end, SH-2 recompiler symbols: $drc"
+
+    - name: Package for the Homebrew Channel
+      shell: bash
+      run: |
+        mkdir -p dist/apps/32xtest dist/32xtest/roms dist/32xtest/bios
+        cp 32xtest.dol dist/apps/32xtest/boot.dol
+        cp hbc/meta.xml hbc/icon.png dist/apps/32xtest/
+        cp picodrive/COPYING dist/apps/32xtest/PICODRIVE_LICENSE.txt
+        cp picodrive/AUTHORS dist/apps/32xtest/PICODRIVE_AUTHORS.txt
+        cp README.md dist/apps/32xtest/README.md
+        echo "Put the 32X games (.32x) here." > dist/32xtest/roms/put-games-here.txt
+        echo "Optional: 32X_G_BIOS.BIN, 32X_M_BIOS.BIN, 32X_S_BIOS.BIN" > dist/32xtest/bios/put-bios-here.txt
+
+    - name: Upload
+      uses: actions/upload-artifact@v4
+      with:
+        name: 32xTest-Wii
+        path: dist/

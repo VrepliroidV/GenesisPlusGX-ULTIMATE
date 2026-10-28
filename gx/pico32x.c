@@ -363,6 +363,12 @@ void pico32x_start(void)
     snprintf(sound_rate_text, sizeof(sound_rate_text), "48000");
   vars_changed = 1;
   fifo_len = 0;
+  out_frac = 0.0;
+  read_pos = 0.0;
+
+  /* the sound engine of Genesis Plus GX is not used, but gx_video.c sets its
+     output rate at every VSYNC (snd.sample_rate, read by pico32x_audio) */
+  audio_init(48000, fps);
 
   /* controllers of the settings (3 or 6 buttons) */
   input_init();
@@ -382,25 +388,57 @@ void pico32x_frame(void)
   retro_run();
 }
 
+/* The samples of one frame for the audio DMA. Like audio_update(), it
+   follows the output rate gx_video.c asks for in snd.sample_rate (a little
+   above or below 48 kHz, to stay in sync with the video): PicoDrive makes
+   48000 samples per second of video, read here a little faster or slower.
+   A multiple of 8 samples (32 bytes), at most 1024. */
+static double out_frac = 0.0;   /* samples owed to the next frame */
+static double read_pos = 0.0;   /* position in the FIFO, between two samples */
+
 int pico32x_audio(int16 *out)
 {
-  /* a multiple of 8 samples (32 bytes for the DMA), at most 1024 */
-  int n = fifo_len & ~7;
-  if (n > 1024)
-    n = 1024;
-  if (n)
+  double fps = (snd.frame_rate > 0.0) ? snd.frame_rate : (vdp_pal ? 50.0 : 60.0);
+  double rate = snd.sample_rate ? snd.sample_rate : 48000;
+  double step = 48000.0 / rate;
+  double want = out_frac + rate / fps;
+  int n = ((int) want) & ~7, i, used;
+
+  if (n < 8) n = 8;
+  if (n > 1024) n = 1024;
+  out_frac = want - n;
+  if (out_frac < -64.0 || out_frac > 64.0)
+    out_frac = 0.0;
+
+  for (i = 0; i < n; i++)
   {
-    memcpy(out, fifo, n * 4);
-    fifo_len -= n;
-    if (fifo_len)
-      memmove(fifo, fifo + n * 2, fifo_len * 4);
+    int k = (int) read_pos;
+    if (k >= fifo_len)
+      k = fifo_len - 1; /* running short: the last sample again */
+    if (k < 0)
+    {
+      out[i * 2] = out[i * 2 + 1] = 0;
+    }
+    else
+    {
+      out[i * 2] = fifo[k * 2];
+      out[i * 2 + 1] = fifo[k * 2 + 1];
+    }
+    read_pos += step;
   }
-  else
-  {
-    /* never an empty DMA transfer */
-    memset(out, 0, 8 * 4);
-    n = 8;
-  }
+
+  /* drop what was read; keep at most about two frames waiting */
+  used = (int) read_pos;
+  if (used > fifo_len)
+    used = fifo_len;
+  read_pos -= used;
+  if (read_pos > 1.0)
+    read_pos = 0.0;
+  if (fifo_len - used > 2048)
+    used = fifo_len - 1024;
+  fifo_len -= used;
+  if (fifo_len > 0)
+    memmove(fifo, fifo + used * 2, fifo_len * 4);
   return n;
 }
 

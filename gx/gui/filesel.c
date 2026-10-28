@@ -120,19 +120,19 @@ static gui_image bg_filesel[15] =
   {NULL,NULL,0,392,118,232,148,255},
   {NULL,NULL,0,414,116,184,188,255},
   {NULL,NULL,0,416,144,180,228,255},
-  {NULL,NULL,0,386,140,247,166,255}
+  {NULL,NULL,0,386,137,247,173,255}
 };
 
 /* Screenshot area (bg_filesel[7] and [8]): the label of the cartridge, smaller
-   on the 32X one (next to the yellow band of its label) */
+   on the 32X one */
 #define SNAP_X 424
 #define SNAP_Y 148
 #define SNAP_W 160
 #define SNAP_H 112
-#define SNAP_32X_X (386 + 64)
-#define SNAP_32X_Y (140 + 15)
-#define SNAP_32X_W 144
-#define SNAP_32X_H 96
+#define SNAP_32X_X (386 + 46)
+#define SNAP_32X_Y (137 + 16)
+#define SNAP_32X_W 150
+#define SNAP_32X_H 100
 
 static void set_snap_area(int type)
 {

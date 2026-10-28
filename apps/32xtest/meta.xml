@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<app version="1">
+  <name>32X Test</name>
+  <coder>VrepliroidV (PicoDrive: notaz, irixxxx)</coder>
+  <version>0.1</version>
+  <release_date>20261028</release_date>
+  <short_description>Sega 32X speed test (PicoDrive)</short_description>
+  <long_description>A test of the Sega 32X on the Wii with the PicoDrive libretro core: a list of the games in 32xtest/roms, the SH-2 CPUs recompiled or interpreted, the built-in 32X BIOS or the BIOS files of 32xtest/bios, and the speed on screen (frames per second and percent of full speed). HOME, GameCube Z + Right or USB Mode + Right opens the menu.</long_description>
+  <ahb_access/>
+</app>

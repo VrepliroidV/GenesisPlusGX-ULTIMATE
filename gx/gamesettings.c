@@ -91,7 +91,20 @@ static const t_game_field fields[] =
   FIELD(m68k_auto_overclock, T_U8),
   FIELD(s68k_overclock, T_FLOAT),
   FIELD(s68k_auto_overclock, T_U8),
-  FIELD(z80_overclock, T_FLOAT)
+  FIELD(z80_overclock, T_FLOAT),
+  /* 32X (PicoDrive) */
+  FIELD(p32x_drc, T_U8),
+  FIELD(p32x_renderer, T_U8),
+  FIELD(p32x_msh2, T_S16),
+  FIELD(p32x_ssh2, T_S16),
+  FIELD(p32x_m68k_overclock, T_S16),
+  FIELD(p32x_idle, T_U8),
+  FIELD(p32x_pwm, T_U8),
+  FIELD(p32x_pwm_irq_opt, T_U8),
+  FIELD(p32x_sprlim, T_U8),
+  FIELD(p32x_ym2612, T_U8),
+  FIELD(p32x_fm_filter, T_U8),
+  FIELD(p32x_lowpass, T_U8)
 };
 
 #define FIELD_COUNT (sizeof(fields) / sizeof(fields[0]))
@@ -290,8 +303,12 @@ void gamesettings_load(void)
       if (config.z80_overclock < 1.0) config.z80_overclock = 1.0;
       config.bezel[sizeof(config.bezel) - 1] = 0;
       if (strchr(config.bezel, '/') || strchr(config.bezel, '\\')) config.bezel[0] = 0;
+      pico32x_config_check();
     }
   }
+
+  /* PicoDrive takes the game's 32X settings (or the global ones) again */
+  pico32x_options_changed();
 }
 
 int gamesettings_enable(void)
@@ -327,6 +344,7 @@ void gamesettings_disable(void)
   }
   move_globals(RESTORE);
   active = 0;
+  pico32x_options_changed();
 }
 
 void gamesettings_begin_global_save(void)

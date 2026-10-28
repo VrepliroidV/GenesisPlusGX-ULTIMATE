@@ -39,4 +39,13 @@ extern void pico32x_sram_from_gpgx(void); /* sram.sram into the game's backup RA
 
 extern const char *pico32x_last_error(void); /* the core's last error message */
 
+/* PicoDrive's settings for the 32X games (config.p32x_*, menu 32X Settings) */
+#define PICO32X_RENDERER_GOOD     0
+#define PICO32X_RENDERER_ACCURATE 1
+#define PICO32X_RENDERER_FAST     2
+#define PICO32X_SH2_KHZ           18409  /* PicoDrive's SH-2 speed (100%): 2.4x the 68k clock */
+extern void pico32x_config_default(void);
+extern void pico32x_config_check(void);      /* values out of range back to the defaults */
+extern void pico32x_options_changed(void);   /* PicoDrive takes the settings again */
+
 #endif

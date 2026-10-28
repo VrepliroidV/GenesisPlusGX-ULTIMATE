@@ -15,6 +15,12 @@ Changed: `Byteswap()` in `pico/cart.c` copies the data on big endian CPUs
 when the destination is another buffer (it did nothing there, so the 32X BIOS
 files were never copied on the Wii and the games stayed on a black screen).
 
+Changed: `platform/libretro/libretro.c` (built with `GPGX_ULTIMATE`) also
+reads the 32X settings of PicoDrive's own menu as options: PWM sound, PWM IRQ
+optimization, idle loop detection and the SH-2 cycles (`picodrive_gx_*`), and
+sets the SH-2 cores up again when the recompiler is turned on or off during a
+game. They are in Genesis Plus GX ULTIMATE's System Settings > 32X Settings.
+
 Added: `Makefile.gx` and `pico32x_keep.txt`, which build the core for the Wii
 and make `picodrive_core.o` of it (see `Makefile.wii`), and this file. The front end
 is `gx/pico32x.c`.

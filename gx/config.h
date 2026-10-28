@@ -144,6 +144,19 @@ typedef struct
   char menu_music[128];  /* MENU_MUSIC_OFF, MENU_MUSIC_RANDOM or an OGG file in /genplusultimate/music (gx_audio.c) */
   char lastdir_32x[TYPE_RECENT][MAXPATHLEN];  /* last 32X game directory of each device */
   char sys_rom_32x[3][256];  /* 32X BIOS: 68000, master SH-2, slave SH-2 (gx/pico32x.h) */
+  /* settings of PicoDrive for the 32X games (gx/pico32x.h, 32X Settings) */
+  uint16 p32x_msh2;            /* master SH-2 speed, percent of PicoDrive's */
+  uint16 p32x_ssh2;            /* slave SH-2 speed, percent of PicoDrive's */
+  uint16 p32x_m68k_overclock;  /* 68k overclock in percent, 0 off */
+  uint8 p32x_drc;              /* 1: SH-2 recompilers */
+  uint8 p32x_renderer;         /* PICO32X_RENDERER_* */
+  uint8 p32x_idle;             /* 1: 68k idle loop detection */
+  uint8 p32x_pwm;              /* 1: PWM sound */
+  uint8 p32x_pwm_irq_opt;      /* 1: PWM IRQ optimization */
+  uint8 p32x_sprlim;           /* 1: no sprite limit */
+  uint8 p32x_ym2612;           /* FM chip: 1 YM2612, 0 YM3438 */
+  uint8 p32x_fm_filter;        /* 1: FM filtering */
+  uint8 p32x_lowpass;          /* low-pass filter in percent, 0 off */
 } t_config;
 
 /* The last directory of a file type: the 32X one was added at the end of

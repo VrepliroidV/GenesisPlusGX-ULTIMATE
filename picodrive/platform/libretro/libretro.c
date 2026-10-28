@@ -82,6 +82,9 @@ static uint64_t page_table[2] = {0, 0};
 #include <pico/state.h>
 #include <pico/patch.h>
 #include <pico/sound/mix.h>
+#ifdef GPGX_ULTIMATE
+#include <cpu/sh2/compiler.h>
+#endif
 #include "../common/input_pico.h"
 #include "../common/version.h"
 #include <libretro.h>
@@ -1939,6 +1942,9 @@ static void update_variables(bool first_run)
    double new_sound_rate;
    unsigned short old_snd_filter;
    int32_t old_snd_filter_range;
+#ifdef GPGX_ULTIMATE
+   int gx_old_opt = PicoIn.opt;
+#endif
 
    var.value = NULL;
    var.key = "picodrive_mouse_speed";
@@ -2195,6 +2201,56 @@ static void update_variables(bool first_run)
                vm_current_start_line, vm_current_line_count,
                vm_current_start_col, vm_current_col_count);
    }
+
+#ifdef GPGX_ULTIMATE
+   /* Genesis Plus GX ULTIMATE: the 32X settings of PicoDrive's own menu
+      (platform/common/menu_pico.c) */
+   var.value = NULL;
+   var.key = "picodrive_gx_pwm";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      if (strcmp(var.value, "enabled") == 0)
+         PicoIn.opt |= POPT_EN_PWM;
+      else
+         PicoIn.opt &= ~POPT_EN_PWM;
+   }
+
+   var.value = NULL;
+   var.key = "picodrive_gx_pwm_irq_opt";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      if (strcmp(var.value, "enabled") == 0)
+         PicoIn.opt |= POPT_PWM_IRQ_OPT;
+      else
+         PicoIn.opt &= ~POPT_PWM_IRQ_OPT;
+   }
+
+   /* idle loop detection of the 68k, set up at reset */
+   var.value = NULL;
+   var.key = "picodrive_gx_idle_det";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      if (strcmp(var.value, "enabled") == 0)
+         PicoIn.opt &= ~POPT_DIS_IDLE_DET;
+      else
+         PicoIn.opt |= POPT_DIS_IDLE_DET;
+   }
+
+   /* SH-2 cycles per millisecond */
+   var.value = NULL;
+   var.key = "picodrive_gx_msh2_khz";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value && atoi(var.value) > 0)
+      Pico32xSetClocks(atoi(var.value) * 1000, 0);
+   var.value = NULL;
+   var.key = "picodrive_gx_ssh2_khz";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value && atoi(var.value) > 0)
+      Pico32xSetClocks(0, atoi(var.value) * 1000);
+
+   /* recompiler turned on or off during a game: the SH-2s get the other
+      core (as after PicoDrive's menu); its block cache may be stale */
+   if (!first_run && Pico.rom && ((gx_old_opt ^ PicoIn.opt) & POPT_EN_DRC)) {
+      if (PicoIn.opt & POPT_EN_DRC)
+         sh2_drc_flush_all();
+      PicoLoopPrepare();
+   }
+#endif
 
    /* Reinitialise frameskipping, if required */
    if (((frameskip_type != old_frameskip_type) ||

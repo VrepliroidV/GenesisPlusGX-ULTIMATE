@@ -417,7 +417,25 @@ static gui_item items_system[] =
   {NULL,NULL,"Sub 68k Overclock: 3.0x",    "Adjust Sega CD / Mega-CD CPU clock speed",    56,132,276,48},
   {NULL,NULL,"Sub 68k Auto Overclock: OFF", "Overclock only when the game slows down",    56,132,276,48},
   {NULL,NULL,"Z80 Overclock: 3.0x",        "Adjust Z80 CPU clock speed",                  56,132,276,48},
+  {NULL,NULL,"32X Settings (PicoDrive)",   "Settings of the 32X emulation (PicoDrive)",   56,132,276,48},
   {NULL,NULL,"SVP Cycles: 1500",           "Adjust SVP chip emulation speed",             56,132,276,48}
+};
+
+/* 32X settings (PicoDrive, config.p32x_*) */
+static gui_item items_pico32x[] =
+{
+  {NULL,NULL,"Dynamic Recompiler: ON",     "OFF is much slower: only to look for glitches", 56,132,276,48},
+  {NULL,NULL,"Renderer: GOOD",             "Mega Drive layer: GOOD, ACCURATE (slower), FAST", 56,132,276,48},
+  {NULL,NULL,"Master SH-2 Speed: 100%",    "Main 32X CPU cycles (lower: faster, may break)", 56,132,276,48},
+  {NULL,NULL,"Slave SH-2 Speed: 100%",     "Second 32X CPU cycles (lower: faster, may break)", 56,132,276,48},
+  {NULL,NULL,"68k Overclock: OFF",         "Can reduce slowdown, may cause glitches",       56,132,276,48},
+  {NULL,NULL,"Idle Loop Detection: ON",    "Turn off if a game hangs (applies at reset)",   56,132,276,48},
+  {NULL,NULL,"PWM Sound: ON",              "32X sound chip (OFF is faster, no 32X sound)",  56,132,276,48},
+  {NULL,NULL,"PWM IRQ Optimization: OFF",  "Faster, but may break the 32X sound",           56,132,276,48},
+  {NULL,NULL,"No Sprite Limit: OFF",       "Less flicker, but some effects may break",      56,132,276,48},
+  {NULL,NULL,"FM Chip: YM3438",            "Mega Drive model 1 (YM2612) or 2 (YM3438) sound", 56,132,276,48},
+  {NULL,NULL,"FM Filtering: OFF",          "Better FM sound, slower",                       56,132,276,48},
+  {NULL,NULL,"Low-Pass Filter: OFF",       "Model 1 low-pass sound filter strength",        56,132,276,48}
 };
 
 /* Video options */
@@ -638,6 +656,20 @@ static gui_menu menu_rompaths =
   0,0,
   SYS_ROM_COUNT,4,6,0,
   items_rompaths,
+  buttons_list,
+  bg_list,
+  {&action_cancel, &action_select},
+  {&arrow_up,&arrow_down},
+  NULL
+};
+
+/* 32X Settings submenu */
+static gui_menu menu_pico32x =
+{
+  "32X Settings",
+  0,0,
+  12,4,6,0,
+  items_pico32x,
   buttons_list,
   bg_list,
   {&action_cancel, &action_select},
@@ -1425,6 +1457,115 @@ static const uint16 vc_table[4][2] =
 
 /* the overclock items of one 68k (index: its ratio, the highest one when
    automatic, then whether it is automatic) */
+/****************************************************************************
+ * 32X settings: PicoDrive's options (config.p32x_*, also per game), the
+ * same as in its libretro core and its own menu
+ ****************************************************************************/
+static void pico32x_labels(gui_item *items)
+{
+  static const char *renderer[] = { "GOOD", "ACCURATE", "FAST" };
+
+  sprintf(items[0].text, "Dynamic Recompiler: %s", config.p32x_drc ? "ON" : "OFF");
+  sprintf(items[1].text, "Renderer: %s", renderer[(config.p32x_renderer < 3) ? config.p32x_renderer : 0]);
+  sprintf(items[2].text, "Master SH-2 Speed: %d%%", config.p32x_msh2);
+  sprintf(items[3].text, "Slave SH-2 Speed: %d%%", config.p32x_ssh2);
+  if (config.p32x_m68k_overclock)
+    sprintf(items[4].text, "68k Overclock: +%d%%", config.p32x_m68k_overclock);
+  else
+    sprintf(items[4].text, "68k Overclock: OFF");
+  sprintf(items[5].text, "Idle Loop Detection: %s", config.p32x_idle ? "ON" : "OFF");
+  sprintf(items[6].text, "PWM Sound: %s", config.p32x_pwm ? "ON" : "OFF");
+  sprintf(items[7].text, "PWM IRQ Optimization: %s", config.p32x_pwm_irq_opt ? "ON" : "OFF");
+  sprintf(items[8].text, "No Sprite Limit: %s", config.p32x_sprlim ? "ON" : "OFF");
+  sprintf(items[9].text, "FM Chip: %s", config.p32x_ym2612 ? "YM2612" : "YM3438");
+  sprintf(items[10].text, "FM Filtering: %s", config.p32x_fm_filter ? "ON" : "OFF");
+  if (config.p32x_lowpass)
+    sprintf(items[11].text, "Low-Pass Filter: %d%%", config.p32x_lowpass);
+  else
+    sprintf(items[11].text, "Low-Pass Filter: OFF");
+}
+
+static void pico32xmenu(void)
+{
+  static const u16 overclocks[] = { 0, 25, 50, 75, 100, 200, 400 };
+  int ret, i;
+  gui_menu *m = &menu_pico32x;
+  gui_item *items = m->items;
+  s16 speed;
+
+  pico32x_labels(items);
+  GUI_InitMenu(m);
+  GUI_SlideMenuTitle(m,strlen("32X "));
+
+  while (1)
+  {
+    ret = GUI_RunMenu(m);
+
+    switch (ret)
+    {
+      case 0:
+        config.p32x_drc ^= 1;
+        break;
+
+      case 1:
+        config.p32x_renderer = (config.p32x_renderer + 1) % 3;
+        break;
+
+      case 2:
+      case 3:
+        speed = (ret == 2) ? config.p32x_msh2 : config.p32x_ssh2;
+        GUI_OptionBox(m,0,(ret == 2) ? "Master SH-2 Speed (%)" : "Slave SH-2 Speed (%)",(void *)&speed,5,25,300,1);
+        if (ret == 2)
+          config.p32x_msh2 = speed;
+        else
+          config.p32x_ssh2 = speed;
+        break;
+
+      case 4:
+        for (i = 0; (i < 6) && (overclocks[i] != config.p32x_m68k_overclock); i++);
+        config.p32x_m68k_overclock = overclocks[(i + 1) % 7];
+        break;
+
+      case 5:
+        config.p32x_idle ^= 1;
+        break;
+
+      case 6:
+        config.p32x_pwm ^= 1;
+        break;
+
+      case 7:
+        config.p32x_pwm_irq_opt ^= 1;
+        break;
+
+      case 8:
+        config.p32x_sprlim ^= 1;
+        break;
+
+      case 9:
+        config.p32x_ym2612 ^= 1;
+        break;
+
+      case 10:
+        config.p32x_fm_filter ^= 1;
+        break;
+
+      case 11:
+        /* OFF, 10% ... 90% */
+        config.p32x_lowpass = (config.p32x_lowpass >= 90) ? 0 : (config.p32x_lowpass / 10 + 1) * 10;
+        break;
+
+      case -1:
+        GUI_DeleteMenu(m);
+        /* PicoDrive takes them at the next frame of a 32X game */
+        pico32x_options_changed();
+        return;
+    }
+
+    pico32x_labels(items);
+  }
+}
+
 static void overclock_labels(gui_item *items, int index, char *name, float ratio, int automatic, char *comment)
 {
   if (automatic)
@@ -1551,12 +1692,12 @@ static void systemmenu ()
 
   if (svp)
   {
-    sprintf (items[17].text, "SVP Cycles: %d", SVP_cycles);
-    m->max_items = 18;
+    sprintf (items[18].text, "SVP Cycles: %d", SVP_cycles);
+    m->max_items = 19;
   }
   else
   {
-    m->max_items = 17;
+    m->max_items = 18;
   }
 
   GUI_InitMenu(m);
@@ -1871,10 +2012,18 @@ static void systemmenu ()
         break;
       }
 
-      case 17:  /*** SVP cycles per line ***/
+      case 17:  /*** 32X settings (PicoDrive) ***/
+      {
+        GUI_DeleteMenu(m);
+        pico32xmenu();
+        GUI_InitMenu(m);
+        break;
+      }
+
+      case 18:  /*** SVP cycles per line ***/
       {
         GUI_OptionBox(m,0,"SVP Cycles",(void *)&SVP_cycles,1,1,1500,1);
-        sprintf (items[17].text, "SVP Cycles: %d", SVP_cycles);
+        sprintf (items[18].text, "SVP Cycles: %d", SVP_cycles);
         break;
       }
 
@@ -1948,6 +2097,9 @@ static void systemmenu ()
   autooc_apply(&autooc, config.m68k_auto_overclock, config.m68k_overclock);
   autooc_apply(&autooc_sub, config.s68k_auto_overclock, config.s68k_overclock);
   z80_cycle_ratio  = (100 << Z80_OVERCLOCK_SHIFT) / (int)(config.z80_overclock * 100.0);
+
+  /* a 32X game takes the region again (PicoDrive) */
+  pico32x_options_changed();
 
   GUI_DeleteMenu(m);
 }

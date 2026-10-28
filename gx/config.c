@@ -58,6 +58,7 @@
 #define CONFIG_SIZE_BEFORE_BEZEL ((offsetof(t_config, bezel) + 3) & ~3)
 #define CONFIG_SIZE_BEFORE_MUSIC ((offsetof(t_config, menu_music) + 3) & ~3)
 #define CONFIG_SIZE_BEFORE_32X ((offsetof(t_config, lastdir_32x) + 3) & ~3)
+#define CONFIG_SIZE_BEFORE_32X_SETTINGS ((offsetof(t_config, p32x_msh2) + 3) & ~3)
 
 t_config config;
 
@@ -73,7 +74,8 @@ static int config_load(void)
     fseek(fp, 0, SEEK_END);
     long size = ftell(fp);
     if ((size != sizeof(config)) && (size != CONFIG_SIZE_BEFORE_AUTOCROP) && (size != CONFIG_SIZE_BEFORE_AUTOCROP_SCALE) &&
-        (size != CONFIG_SIZE_BEFORE_BEZEL) && (size != CONFIG_SIZE_BEFORE_MUSIC) && (size != CONFIG_SIZE_BEFORE_32X))
+        (size != CONFIG_SIZE_BEFORE_BEZEL) && (size != CONFIG_SIZE_BEFORE_MUSIC) && (size != CONFIG_SIZE_BEFORE_32X) &&
+        (size != CONFIG_SIZE_BEFORE_32X_SETTINGS))
     {
       fclose(fp);
       return 0;
@@ -135,6 +137,8 @@ static int config_load(void)
     {
       config.s68k_auto_overclock = 0;
     }
+    /* 32X settings: the defaults set before for older files, else checked */
+    pico32x_config_check();
     return 1;
   }
   return 0;
@@ -349,6 +353,9 @@ void config_default(void)
   sprintf (config.sys_rom_32x[0], "%s/bios/32X_G_BIOS.BIN", DEFAULT_PATH);
   sprintf (config.sys_rom_32x[1], "%s/bios/32X_M_BIOS.BIN", DEFAULT_PATH);
   sprintf (config.sys_rom_32x[2], "%s/bios/32X_S_BIOS.BIN", DEFAULT_PATH);
+
+  /* 32X settings (PicoDrive) */
+  pico32x_config_default();
 
   /* try to restore user config */
   int loaded = config_load();

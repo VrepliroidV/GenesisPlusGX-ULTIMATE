@@ -49,14 +49,54 @@ static int fifo_len = 0;
 static double out_frac = 0.0;   /* samples owed to the next frame */
 static double read_pos = 0.0;   /* position in the FIFO, between two samples */
 
-/* Core options: the recompiler, the "Good" renderer (both as tested on
-   the Wii), the sound rate the video needs and the region of the settings */
+/* Core options: the 32X settings of the menu (config.p32x_*, also per game),
+   the sound rate the video needs and the region of the settings */
+static char opt_text[4][16];
+
 static const char *option_value(const char *key)
 {
+  static const char *renderer[] = { "good", "accurate", "fast" };
+
   if (!strcmp(key, "picodrive_drc"))
-    return "enabled";
+    return config.p32x_drc ? "enabled" : "disabled";
   if (!strcmp(key, "picodrive_renderer"))
-    return "good";
+    return renderer[(config.p32x_renderer < 3) ? config.p32x_renderer : 0];
+  if (!strcmp(key, "picodrive_sprlim"))
+    return config.p32x_sprlim ? "enabled" : "disabled";
+  if (!strcmp(key, "picodrive_overclk68k"))
+  {
+    if (!config.p32x_m68k_overclock)
+      return "disabled";
+    snprintf(opt_text[0], sizeof(opt_text[0]), "+%d%%", config.p32x_m68k_overclock);
+    return opt_text[0];
+  }
+  if (!strcmp(key, "picodrive_fmchip"))
+    return config.p32x_ym2612 ? "ym2612" : "ym3438";
+  if (!strcmp(key, "picodrive_fm_filter"))
+    return config.p32x_fm_filter ? "on" : "off";
+  if (!strcmp(key, "picodrive_audio_filter"))
+    return config.p32x_lowpass ? "low-pass" : "disabled";
+  if (!strcmp(key, "picodrive_lowpass_range"))
+  {
+    snprintf(opt_text[1], sizeof(opt_text[1]), "%d", config.p32x_lowpass ? config.p32x_lowpass : 60);
+    return opt_text[1];
+  }
+  if (!strcmp(key, "picodrive_gx_pwm"))
+    return config.p32x_pwm ? "enabled" : "disabled";
+  if (!strcmp(key, "picodrive_gx_pwm_irq_opt"))
+    return config.p32x_pwm_irq_opt ? "enabled" : "disabled";
+  if (!strcmp(key, "picodrive_gx_idle_det"))
+    return config.p32x_idle ? "enabled" : "disabled";
+  if (!strcmp(key, "picodrive_gx_msh2_khz"))
+  {
+    snprintf(opt_text[2], sizeof(opt_text[2]), "%d", PICO32X_SH2_KHZ * config.p32x_msh2 / 100);
+    return opt_text[2];
+  }
+  if (!strcmp(key, "picodrive_gx_ssh2_khz"))
+  {
+    snprintf(opt_text[3], sizeof(opt_text[3]), "%d", PICO32X_SH2_KHZ * config.p32x_ssh2 / 100);
+    return opt_text[3];
+  }
   if (!strcmp(key, "picodrive_sound_rate"))
     return sound_rate_text;
   if (!strcmp(key, "picodrive_frameskip"))
@@ -73,6 +113,40 @@ static const char *option_value(const char *key)
     }
   }
   return NULL;
+}
+
+void pico32x_config_default(void)
+{
+  config.p32x_drc = 1;              /* as tested on the Wii: full speed */
+  config.p32x_renderer = PICO32X_RENDERER_GOOD;
+  config.p32x_msh2 = 100;
+  config.p32x_ssh2 = 100;
+  config.p32x_m68k_overclock = 0;
+  config.p32x_idle = 1;
+  config.p32x_pwm = 1;
+  config.p32x_pwm_irq_opt = 0;
+  config.p32x_sprlim = 0;
+  config.p32x_ym2612 = 0;           /* YM3438, as PicoDrive's libretro core */
+  config.p32x_fm_filter = 0;
+  config.p32x_lowpass = 0;
+}
+
+void pico32x_config_check(void)
+{
+  if ((config.p32x_drc > 1) || (config.p32x_renderer > PICO32X_RENDERER_FAST) ||
+      (config.p32x_msh2 < 25) || (config.p32x_msh2 > 300) ||
+      (config.p32x_ssh2 < 25) || (config.p32x_ssh2 > 300) ||
+      (config.p32x_m68k_overclock > 400) || (config.p32x_idle > 1) || (config.p32x_pwm > 1) ||
+      (config.p32x_pwm_irq_opt > 1) || (config.p32x_sprlim > 1) || (config.p32x_ym2612 > 1) ||
+      (config.p32x_fm_filter > 1) || (config.p32x_lowpass > 95))
+  {
+    pico32x_config_default();
+  }
+}
+
+void pico32x_options_changed(void)
+{
+  vars_changed = 1;
 }
 
 static void core_log(enum retro_log_level level, const char *fmt, ...)

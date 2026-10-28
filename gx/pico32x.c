@@ -395,6 +395,12 @@ int pico32x_audio(int16 *out)
     if (fifo_len)
       memmove(fifo, fifo + n * 2, fifo_len * 4);
   }
+  else
+  {
+    /* never an empty DMA transfer */
+    memset(out, 0, 8 * 4);
+    n = 8;
+  }
   return n;
 }
 

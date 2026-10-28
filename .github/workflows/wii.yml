@@ -76,6 +76,10 @@ jobs:
         GH_TOKEN: ${{ github.token }}
       run: |
         command -v git >/dev/null || (apt-get update && apt-get install -y --no-install-recommends git ca-certificates)
+        # symbols, to read the addresses of exception screens
+        mkdir -p dist/debug
+        /opt/devkitpro/devkitPPC/bin/powerpc-eabi-nm -n -S genplus_wii.elf > dist/debug/symbols.txt
+        cp build_wii/genplus_wii.elf.map dist/debug/ 2>/dev/null || cp genplus_wii.elf.map dist/debug/ 2>/dev/null || true
         cd dist
         git init -q -b 32x-build
         git config user.name "github-actions[bot]"

@@ -126,7 +126,7 @@ typedef struct
   int16 screen_w;
   float bgm_volume;
   float sfx_volume;
-  char lastdir[FILETYPE_MAX][TYPE_RECENT][MAXPATHLEN];
+  char lastdir[FILETYPE_32X][TYPE_RECENT][MAXPATHLEN];  /* the 32X one is lastdir_32x */
   float ntsc_sharpness;
   float ntsc_resolution;
   float ntsc_artifacts;
@@ -142,7 +142,17 @@ typedef struct
   uint8 s68k_auto_overclock;  /* same for the Mega CD sub 68k and s68k_overclock */
   char bezel[128];  /* "" off, "<auto>" by the game's name, or a PNG in /genplusultimate/bezels (gx/utils/bezel.h) */
   char menu_music[128];  /* MENU_MUSIC_OFF, MENU_MUSIC_RANDOM or an OGG file in /genplusultimate/music (gx_audio.c) */
+  char lastdir_32x[TYPE_RECENT][MAXPATHLEN];  /* last 32X game directory of each device */
+  char sys_rom_32x[3][256];  /* 32X BIOS: 68000, master SH-2, slave SH-2 (gx/pico32x.h) */
 } t_config;
+
+/* The last directory of a file type: the 32X one was added at the end of
+   the settings, so older config.ini files can still be read */
+#define CONFIG_LASTDIR(type, device) (((type) == FILETYPE_32X) ? config.lastdir_32x[device] : config.lastdir[type][device])
+
+/* System ROM i: 0-11 as in Genesis Plus GX, 12-14 the 32X BIOS */
+#define SYS_ROM_COUNT 15
+#define CONFIG_SYS_ROM(i) (((i) >= 12) ? config.sys_rom_32x[(i) - 12] : config.sys_rom[i])
 
 /* Menu music (config.menu_music): none, one of the OGG files of the music
    folder picked by chance at every start, or one file name ("<" is not

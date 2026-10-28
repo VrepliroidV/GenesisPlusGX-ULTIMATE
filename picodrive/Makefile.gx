@@ -1,0 +1,28 @@
+# Genesis Plus GX ULTIMATE: the Sega 32X, emulated by this PicoDrive libretro
+# core. It is built for the Wii and made into one object, pico32x.o, whose
+# only global symbols are the libretro API and the 32X BIOS pointers: the
+# rest (zlib, Tremor, the CPU cores...) cannot clash with Genesis Plus GX.
+#
+#   make -f Makefile.gx OUT=<path>/pico32x.o      (from Makefile.wii)
+
+OUT     ?= pico32x.o
+PREFIX  := $(DEVKITPPC)/bin/powerpc-eabi-
+CORE    := picodrive_libretro_wii.a
+KEEP    := pico32x_keep.txt
+
+.PHONY: all core
+all: $(OUT)
+
+# STATIC_LINKING=0: the libretro-common files (file streams, paths) are built
+# too, there is no RetroArch to provide them. chkCCflag= leaves out -flto.
+# use_libchdr=0: no CHD images (Mega CD only).
+core:
+	@echo "PicoDrive core (32X)"
+	@CFLAGS="-DGPGX_ULTIMATE" $(MAKE) --no-print-directory -f Makefile.libretro \
+		platform=wii STATIC_LINKING=0 STATIC_LINKING_LINK=1 use_libchdr=0 chkCCflag=
+
+$(OUT): core $(KEEP)
+	@$(PREFIX)ld -r $(addprefix -u ,$(shell cat $(KEEP))) -o pico32x_all.o $(CORE)
+	@$(PREFIX)objcopy --keep-global-symbols=$(KEEP) pico32x_all.o $(OUT)
+	@echo "pico32x.o: $$($(PREFIX)nm -g --defined-only $(OUT) | wc -l) global symbols, needs:" \
+		$$($(PREFIX)nm -u $(OUT) | awk '{print $$2}' | tr '\n' ' ')

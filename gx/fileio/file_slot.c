@@ -583,8 +583,8 @@ int slot_load(int slot, int device)
 
   if (slot > 0)
   {
-    /* Load state */
-    if (state_load(buffer) <= 0)
+    /* Load state (a 32X game: PicoDrive's state) */
+    if ((pico32x_active ? pico32x_state_load(buffer, done) : state_load(buffer)) <= 0)
     {
       free(buffer);
       GUI_WaitPrompt("Error","Invalid state file !");
@@ -606,6 +606,12 @@ int slot_load(int slot, int device)
 
     /* update CRC */
     sram.crc = crc32(0, sram.sram, 0x10000);
+
+    /* a 32X game: into PicoDrive's backup RAM */
+    if (pico32x_active)
+    {
+      pico32x_sram_from_gpgx();
+    }
   }
 
   free(buffer);
@@ -623,18 +629,25 @@ int slot_save(int slot, int device)
   {
     GUI_MsgBoxOpen("Information","Saving State ...",1);
 
-    /* allocate buffer */
-    buffer = (u8 *)memalign(32,STATE_SIZE);
+    /* allocate buffer (a 32X game: PicoDrive's state) */
+    int state_size = pico32x_active ? pico32x_state_size() : STATE_SIZE;
+    buffer = (u8 *)memalign(32,state_size);
     if (!buffer)
     {
       GUI_WaitPrompt("Error","Unable to allocate memory !");
       return 0;
     }
 
-    filesize = state_save(buffer);
+    filesize = pico32x_active ? pico32x_state_save(buffer, state_size) : state_save(buffer);
   }
   else
   {
+    /* a 32X game: its backup RAM as it is now */
+    if (pico32x_active)
+    {
+      pico32x_sram_to_gpgx();
+    }
+
     /* only save if SRAM is enabled */
     if (!sram.on)
     {

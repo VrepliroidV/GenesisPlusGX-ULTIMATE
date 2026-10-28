@@ -410,7 +410,7 @@ int gx_audio_Update(int status)
   if (status & AUDIO_UPDATE)
   {
     /* Retrieve audio samples (size must be multiple of 32 bytes) */
-    bufferSize = audio_update(sb) * 4;
+    bufferSize = (pico32x_active ? pico32x_audio(sb) : audio_update(sb)) * 4;
     DCStoreRange((void *)sb, bufferSize);
 
     /* Mark current audio frame as being updated */

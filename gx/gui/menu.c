@@ -95,6 +95,7 @@
 /* Load ROM menu */
 #include "Load_recent_png.h"
 #include "Load_md_png.h"
+#include "Load_32x_png.h"
 #include "Load_ms_png.h"
 #include "Load_gg_png.h"
 #include "Load_sg_png.h"
@@ -337,7 +338,7 @@ static gui_item items_ctrls[] =
 /* Load menu */
 static gui_item items_load[] =
 {
-  {NULL,Load_recent_png,"","Load recently played games",    119,144,72, 92},
+  {NULL,Load_32x_png,   "","Load Sega 32X games",           112,141,84, 92},
   {NULL,Load_md_png,    "","Load Mega Drive/Genesis games", 278,141,84, 92},
   {NULL,Load_cd_png,    "","Load Sega/Mega CD games",       454,141,64, 92},
   {NULL,Load_ms_png,    "","Load Master System games",      114,284,84, 96},
@@ -391,6 +392,9 @@ static gui_item items_rompaths[] =
   {NULL,NULL,"Action Replay: NOT FOUND",  "Select Action Replay (Pro) ROM",       56,132,276,48},
   {NULL,NULL,"S&K (2MB): NOT FOUND",  "Select Sonic & Knuckle main ROM",      56,132,276,48},
   {NULL,NULL,"S2&K (256KB): NOT FOUND","Select Sonic 2 & Knuckle upmem ROM",   56,132,276,48},
+  {NULL,NULL,"32X 68K BIOS: NOT FOUND",  "Select 32X 68000 BIOS (optional)",     56,132,276,48},
+  {NULL,NULL,"32X M-SH2 BIOS: NOT FOUND","Select 32X master SH-2 BIOS (optional)",56,132,276,48},
+  {NULL,NULL,"32X S-SH2 BIOS: NOT FOUND","Select 32X slave SH-2 BIOS (optional)", 56,132,276,48},
 };
 
 /* System options */
@@ -632,7 +636,7 @@ static gui_menu menu_rompaths =
 {
   "System ROM Paths",
   0,0,
-  12,4,6,0,
+  SYS_ROM_COUNT,4,6,0,
   items_rompaths,
   buttons_list,
   bg_list,
@@ -1293,9 +1297,9 @@ static void rompathmenu ()
   gui_menu *m = &menu_rompaths;
   gui_item *items = m->items;
   
-  for (i=0; i<12; i++)
+  for (i=0; i<SYS_ROM_COUNT; i++)
   {
-    f = fopen(config.sys_rom[i],"rb");
+    f = fopen(CONFIG_SYS_ROM(i),"rb");
     if (f)
     {
       strcpy(strstr(items[i].text,":") + 2, "FOUND");
@@ -1333,7 +1337,7 @@ static void rompathmenu ()
       if (i >= 0)
       {
         /* full System ROM pathname */
-        sprintf(config.sys_rom[ret],"%s%s",dir,filelist[i].filename);
+        sprintf(CONFIG_SYS_ROM(ret),"%s%s",dir,filelist[i].filename);
 
         /* mark System ROM as found */
         strcpy(strstr(items[ret].text,":") + 2, "FOUND");
@@ -3987,18 +3991,13 @@ static int loadgamemenu ()
       /*** Load from selected device */
       default:
       {
-        /* ROM File type */
-        filetype = ret - 1;
+        /* ROM File type: the first button is the 32X (in place of the
+           recent games), then Mega Drive, Mega CD, Master System, Game Gear
+           and SG-1000 */
+        filetype = (ret > 0) ? (ret - 1) : FILETYPE_32X;
 
         /* Try to open current directory */
-        if (ret > 0)
-        {
-          ret = OpenDirectory(config.l_device, filetype);
-        }
-        else
-        {
-          ret = OpenDirectory(TYPE_RECENT, filetype);
-        }
+        ret = OpenDirectory(config.l_device, filetype);
 
         if (ret)
         {
@@ -4489,7 +4488,12 @@ void mainmenu(void)
         gxClearScreen((GXColor)BLACK);
         gxSetScreen();
 
-        if (system_hw & SYSTEM_MD)
+        if (pico32x_active)
+        {
+          /* 32X game (PicoDrive) */
+          pico32x_reset();
+        }
+        else if (system_hw & SYSTEM_MD)
         {
           /* Soft Reset */
           gen_reset(0);
@@ -4513,6 +4517,11 @@ void mainmenu(void)
       /*** Cheats menu ***/
       case 5:
       {
+        if (pico32x_active)
+        {
+          GUI_WaitPrompt("Information","Cheats are not available for 32X games");
+          break;
+        }
         GUI_DrawMenuFX(m,30,1);
         GUI_DeleteMenu(m);
         CheatMenu();

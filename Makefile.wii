@@ -30,7 +30,7 @@ INCLUDES	:=	core core/m68k core/z80 core/sound core/sound/minimp3 core/sound/tre
 # options for code generation
 #---------------------------------------------------------------------------------
 
-CFLAGS  = -O3 -fomit-frame-pointer -Wall -Wno-strict-aliasing $(MACHDEP) $(INCLUDE) -DMAXROMSIZE=15728640 -DUSE_LIBTREMOR -DUSE_LIBCHDR -DUSE_16BPP_RENDERING -DALT_RENDERER -DBLIP_INVERT -DHW_RVL -DCPU_IS_BIG_ENDIAN=1 -DWORDS_BIGENDIAN=1 -DHAVE_LROUND -DHAVE_STDINT_H  -DHAVE_SYS_PARAM_H -DZ7_ST -DM68K_OVERCLOCK_SHIFT=20 -DZ80_OVERCLOCK_SHIFT=20
+CFLAGS  = -O3 -fomit-frame-pointer -Wall -Wno-strict-aliasing $(MACHDEP) $(INCLUDE) -DMAXROMSIZE=15728640 -DUSE_LIBTREMOR -DUSE_LIBCHDR -DUSE_16BPP_RENDERING -DALT_RENDERER -DBLIP_INVERT -DHW_RVL -DCPU_IS_BIG_ENDIAN=1 -DWORDS_BIGENDIAN=1 -DHAVE_LROUND -DHAVE_STDINT_H  -DHAVE_SYS_PARAM_H -DZ7_ST -DM68K_OVERCLOCK_SHIFT=20 -DZ80_OVERCLOCK_SHIFT=20 -DUSE_DYNAMIC_ALLOC
 CXXFLAGS	=	$(CFLAGS)
 
 LDFLAGS	=	$(MACHDEP) -Wl,-Map,$(notdir $@).map
@@ -107,14 +107,19 @@ export OUTPUT	:=	$(CURDIR)/$(TARGET)
 .PHONY: $(BUILD) clean
 
 #---------------------------------------------------------------------------------
+# Sega 32X: the PicoDrive libretro core of picodrive/ as one object (pico32x.o),
+# made first (picodrive/Makefile.gx). USE_DYNAMIC_ALLOC: the cartridge area
+# (15 MB) is allocated at start-up, which leaves room in MEM1 for PicoDrive.
 $(BUILD):
 	@[ -d $@ ] || mkdir -p $@
+	@$(MAKE) --no-print-directory -C picodrive -f Makefile.gx OUT=$(CURDIR)/$(BUILD)/pico32x.o
 	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile.wii
 
 #---------------------------------------------------------------------------------
 clean:
 	@echo clean ...
 	@rm -fr $(BUILD) $(OUTPUT).elf $(OUTPUT).dol
+	@$(MAKE) --no-print-directory -C picodrive -f Makefile.libretro platform=wii clean >/dev/null 2>&1 || true
 
 
 #---------------------------------------------------------------------------------
@@ -126,7 +131,7 @@ DEPENDS	:=	$(OFILES:.o=.d)
 # main targets
 #---------------------------------------------------------------------------------
 $(OUTPUT).dol: $(OUTPUT).elf
-$(OUTPUT).elf: $(OFILES)
+$(OUTPUT).elf: $(OFILES) pico32x.o
 
 $(OFILES_SOURCES) : $(HFILES)
 

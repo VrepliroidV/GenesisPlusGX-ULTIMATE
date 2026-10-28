@@ -43,6 +43,7 @@
 #include "history.h"
 #include "filesel.h"
 #include "file_slot.h"
+#include "pico32x.h"
 
 #include <errno.h>
 #include <iso9660.h>
@@ -298,6 +299,33 @@ int LoadFile(int selection)
   /* open message box */
   GUI_MsgBoxOpen("Information", "Loading game...", 1);
 
+  /* Sega 32X game (from the 32X list, a .32x file or a recent 32X game):
+     PicoDrive runs it (gx/pico32x.c) */
+  if ((deviceType == TYPE_RECENT) ? (history.entries[selection].filetype == FILETYPE_32X)
+                                  : ((fileType == FILETYPE_32X) || pico32x_is_32x_file(filename)))
+  {
+    /* auto-save the game being left */
+    slot_autosave(config.s_default,config.s_device);
+
+    if (!pico32x_load(filename))
+    {
+      GUI_MsgBoxClose();
+      GUI_WaitPrompt("Error", pico32x_last_error()[0] ? pico32x_last_error() : "Unable to load 32X game");
+      return 0;
+    }
+
+    /* game basename (for screenshot & save files) */
+    sprintf(rom_filename,"32x/%s",filelist[selection].filename);
+    int i = strlen(rom_filename) - 1;
+    while ((i > 0) && (rom_filename[i] != '.')) i--;
+    if (i > 0) rom_filename[i] = 0;
+
+    history_add_file(filepath, filelist[selection].filename, FILETYPE_32X);
+    if (deviceType == TYPE_RECENT) deviceType = -1;
+    GUI_MsgBoxClose();
+    return 1;
+  }
+
   /* no cartridge or CD game loaded */
   size = cd_mode1 = 0;
 
@@ -342,6 +370,9 @@ int LoadFile(int selection)
     {
       /* auto-save previous game state */
       slot_autosave(config.s_default,config.s_device);
+
+      /* a 32X game was running: PicoDrive is not needed any more */
+      pico32x_unload();
 
       /* update game basename (for screenshot, save & cheat files) */
       if (romtype & SYSTEM_SMS)
@@ -458,7 +489,7 @@ int OpenDirectory(int device, int type)
       }
 
       /* extract System ROM directory */
-      strcpy(fileDir, config.sys_rom[type-FILETYPE_MAX]);
+      strcpy(fileDir, CONFIG_SYS_ROM(type-FILETYPE_MAX));
       int i = strlen(fileDir) - 1;
       while (fileDir[i] != '/')
         i--;
@@ -467,7 +498,7 @@ int OpenDirectory(int device, int type)
     else
     {
       /* parse last ROM type directory on selected device */
-      fileDir = config.lastdir[type][device];
+      fileDir = CONFIG_LASTDIR(type, device);
     }
     
     max = ParseDirectory();

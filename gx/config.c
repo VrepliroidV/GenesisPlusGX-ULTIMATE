@@ -57,6 +57,7 @@
 #define CONFIG_SIZE_BEFORE_AUTOCROP_SCALE ((offsetof(t_config, autocrop_scale) + 3) & ~3)
 #define CONFIG_SIZE_BEFORE_BEZEL ((offsetof(t_config, bezel) + 3) & ~3)
 #define CONFIG_SIZE_BEFORE_MUSIC ((offsetof(t_config, menu_music) + 3) & ~3)
+#define CONFIG_SIZE_BEFORE_32X ((offsetof(t_config, lastdir_32x) + 3) & ~3)
 
 t_config config;
 
@@ -72,7 +73,7 @@ static int config_load(void)
     fseek(fp, 0, SEEK_END);
     long size = ftell(fp);
     if ((size != sizeof(config)) && (size != CONFIG_SIZE_BEFORE_AUTOCROP) && (size != CONFIG_SIZE_BEFORE_AUTOCROP_SCALE) &&
-        (size != CONFIG_SIZE_BEFORE_BEZEL) && (size != CONFIG_SIZE_BEFORE_MUSIC))
+        (size != CONFIG_SIZE_BEFORE_BEZEL) && (size != CONFIG_SIZE_BEFORE_MUSIC) && (size != CONFIG_SIZE_BEFORE_32X))
     {
       fclose(fp);
       return 0;
@@ -313,6 +314,9 @@ void config_default(void)
   sprintf (config.lastdir[2][TYPE_DVD], "dvd:%s/roms/", DEFAULT_PATH);
   sprintf (config.lastdir[3][TYPE_DVD], "dvd:%s/roms/", DEFAULT_PATH);
   sprintf (config.lastdir[4][TYPE_DVD], "dvd:%s/roms/", DEFAULT_PATH);
+  sprintf (config.lastdir_32x[TYPE_SD],  "sd:%s/roms/",  DEFAULT_PATH);
+  sprintf (config.lastdir_32x[TYPE_USB], "usb:%s/roms/", DEFAULT_PATH);
+  sprintf (config.lastdir_32x[TYPE_DVD], "dvd:%s/roms/", DEFAULT_PATH);
 #else
   config.l_device = TYPE_SD;
   sprintf (config.lastdir[0][TYPE_SD],  "%s/roms/",  DEFAULT_PATH);
@@ -325,6 +329,8 @@ void config_default(void)
   sprintf (config.lastdir[2][TYPE_DVD], "dvd:%s/roms/", DEFAULT_PATH);
   sprintf (config.lastdir[3][TYPE_DVD], "dvd:%s/roms/", DEFAULT_PATH);
   sprintf (config.lastdir[4][TYPE_DVD], "dvd:%s/roms/", DEFAULT_PATH);
+  sprintf (config.lastdir_32x[TYPE_SD],  "%s/roms/",  DEFAULT_PATH);
+  sprintf (config.lastdir_32x[TYPE_DVD], "dvd:%s/roms/", DEFAULT_PATH);
 #endif
 
   /* system ROM paths */
@@ -340,6 +346,9 @@ void config_default(void)
   sprintf (config.sys_rom[9],   "%s/lock-on/areplay.bin", DEFAULT_PATH);
   sprintf (config.sys_rom[10],  "%s/lock-on/sk.bin",  DEFAULT_PATH);
   sprintf (config.sys_rom[11],  "%s/lock-on/sk2chip.bin", DEFAULT_PATH);
+  sprintf (config.sys_rom_32x[0], "%s/bios/32X_G_BIOS.BIN", DEFAULT_PATH);
+  sprintf (config.sys_rom_32x[1], "%s/bios/32X_M_BIOS.BIN", DEFAULT_PATH);
+  sprintf (config.sys_rom_32x[2], "%s/bios/32X_S_BIOS.BIN", DEFAULT_PATH);
 
   /* try to restore user config */
   int loaded = config_load();

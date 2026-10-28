@@ -156,7 +156,27 @@ static void run_emulation(void)
   while (1)
   {
     /* emulated system */
-    if (system_hw == SYSTEM_MCD)
+    if (pico32x_active)
+    {
+      /* Sega 32X: PicoDrive (gx/pico32x.c) */
+      while (!ConfigRequested)
+      {
+        /* render frame (picture into bitmap, samples kept for gx_audio_Update) */
+        pico32x_frame();
+
+        /* audio/video sync */
+        sync = VIDEO_WAIT | VIDEO_UPDATE | AUDIO_WAIT | AUDIO_UPDATE;
+        while (sync)
+        {
+          /* update audio */
+          sync &= gx_audio_Update(sync);
+
+          /* update video */
+          sync &= gx_video_Update(sync);
+        }
+      }
+    }
+    else if (system_hw == SYSTEM_MCD)
     {
       /* 16-bit hardware + CD */
       while (!ConfigRequested)
@@ -268,6 +288,22 @@ void reloadrom(void)
 {
   /* the game's own video, audio and system options, if it has them */
   gamesettings_load();
+
+  /* Sega 32X game: loaded by PicoDrive already (gx/pico32x.c) */
+  if (pico32x_active)
+  {
+    pico32x_start();
+
+    /* Auto-Load Backup RAM */
+    slot_autoload(0,config.s_device);
+
+    /* Auto-Load State */
+    slot_autoload(config.s_default,config.s_device);
+
+    /* Auto crop layouts learned for this game */
+    gx_video_AutoCropLoad();
+    return;
+  }
 
   /* Cartridge "Hot Swap" support (make sure system has already been inited once and use cartridges) */
   if ((config.hot_swap == 3) && ((system_hw != SYSTEM_MCD) || scd.cartridge.boot))
@@ -447,6 +483,10 @@ int main (int argc, char *argv[])
     dir = opendir(pathname);
     if (dir) closedir(dir);
     else mkdir(pathname,S_IRWXU);
+    sprintf (pathname, "%s/saves/32x",DEFAULT_PATH);
+    dir = opendir(pathname);
+    if (dir) closedir(dir);
+    else mkdir(pathname,S_IRWXU);
     sprintf (pathname, "%s/saves/cd",DEFAULT_PATH);
     dir = opendir(pathname);
     if (dir) closedir(dir);
@@ -470,6 +510,10 @@ int main (int argc, char *argv[])
     if (dir) closedir(dir);
     else mkdir(pathname,S_IRWXU);
     sprintf (pathname, "%s/snaps/sg",DEFAULT_PATH);
+    dir = opendir(pathname);
+    if (dir) closedir(dir);
+    else mkdir(pathname,S_IRWXU);
+    sprintf (pathname, "%s/snaps/32x",DEFAULT_PATH);
     dir = opendir(pathname);
     if (dir) closedir(dir);
     else mkdir(pathname,S_IRWXU);

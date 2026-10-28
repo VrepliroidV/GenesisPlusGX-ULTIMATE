@@ -59,6 +59,7 @@ typedef enum
   FILETYPE_MS,
   FILETYPE_GG,
   FILETYPE_SG,
+  FILETYPE_32X, /* Genesis Plus GX ULTIMATE: Sega 32X (gx/pico32x.c) */
   FILETYPE_MAX
 }FILETYPES;
 

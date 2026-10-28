@@ -38,6 +38,7 @@
 #include "cheats.h"
 
 #include "config.h"
+#include "pico32x.h"
 #include "fileio.h"
 
 #define DEFAULT_PATH  "/genplusultimate"

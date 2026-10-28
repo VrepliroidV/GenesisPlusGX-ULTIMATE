@@ -2176,8 +2176,8 @@ int gx_video_Update(int status)
         vheight = vheight << 1;
       }
 
-      /* ntsc filter */
-      if (config.ntsc)
+      /* ntsc filter (not with the 32X picture of PicoDrive) */
+      if (config.ntsc && !pico32x_active)
       {
         vwidth = (reg[12] & 1) ? MD_NTSC_OUT_WIDTH(vwidth) : SMS_NTSC_OUT_WIDTH(vwidth);
 

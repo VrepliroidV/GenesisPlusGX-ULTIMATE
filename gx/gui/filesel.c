@@ -55,6 +55,7 @@
 #include "Cart_ms_png.h"
 #include "Cart_gg_png.h"
 #include "Cart_sg_png.h"
+#include "Cart_32x_png.h"
 
 FILEENTRIES filelist[MAXFILES];
 
@@ -103,7 +104,7 @@ static gui_item action_select =
 /*****************************************************************************/
 /*  GUI Background images                                                    */
 /*****************************************************************************/
-static gui_image bg_filesel[14] =
+static gui_image bg_filesel[15] =
 {
   {NULL,Bg_layer_png,IMAGE_VISIBLE|IMAGE_REPEAT,0,0,640,480,255},
   {NULL,Bg_overlay_png,IMAGE_VISIBLE|IMAGE_REPEAT,0,0,640,480,255},
@@ -118,7 +119,8 @@ static gui_image bg_filesel[14] =
   {NULL,NULL,0,388,147,240,152,255},
   {NULL,NULL,0,392,118,232,148,255},
   {NULL,NULL,0,414,116,184,188,255},
-  {NULL,NULL,0,416,144,180,228,255}
+  {NULL,NULL,0,416,144,180,228,255},
+  {NULL,NULL,0,388,147,240,152,255}
 };
 
 static const u8 *Cart_png[FILETYPE_MAX] =
@@ -127,7 +129,8 @@ static const u8 *Cart_png[FILETYPE_MAX] =
   Cart_md_png,
   Cart_ms_png,
   Cart_gg_png,
-  Cart_sg_png
+  Cart_sg_png,
+  Cart_32x_png
 };
 
 static const char *Cart_dir[FILETYPE_MAX] =
@@ -136,7 +139,8 @@ static const char *Cart_dir[FILETYPE_MAX] =
   "cd",
   "ms",
   "gg",
-  "sg"
+  "sg",
+  "32x"
 };
 
 static gui_image dir_icon;
@@ -295,7 +299,7 @@ int FileSelector(int type)
     selection = offset = 0;
     while (selection < maxfiles)
     {
-      if (strstr(config.sys_rom[type-FILETYPE_MAX], filelist[selection].filename))
+      if (strstr(CONFIG_SYS_ROM(type-FILETYPE_MAX), filelist[selection].filename))
       {
         offset = selection;
         while ((offset > (maxfiles - 10)) && (offset > 0))
@@ -397,6 +401,27 @@ int FileSelector(int type)
       {
         strcpy(m->title,"Sonic 2 & Knuckles ROM Selection");
         type = FILETYPE_MD;
+        break;
+      }
+
+      case 12:
+      {
+        strcpy(m->title,"32X 68000 BIOS Selection");
+        type = FILETYPE_32X;
+        break;
+      }
+
+      case 13:
+      {
+        strcpy(m->title,"32X Master SH-2 BIOS Selection");
+        type = FILETYPE_32X;
+        break;
+      }
+
+      case 14:
+      {
+        strcpy(m->title,"32X Slave SH-2 BIOS Selection");
+        type = FILETYPE_32X;
         break;
       }
     }

@@ -677,6 +677,11 @@ void Byteswap(void *dst, const void *src, int len)
     unsigned int t = ps[i];
     pd[i] = ((t & m) << 8) | ((t & ~m) >> 8);
   }
+#else
+  // big endian (Genesis Plus GX ULTIMATE, Wii): nothing to swap, but a copy
+  // to another buffer must still be made (the 32X BIOS images)
+  if (dst != src && len > 0)
+    memcpy(dst, src, len);
 #endif
 }
 

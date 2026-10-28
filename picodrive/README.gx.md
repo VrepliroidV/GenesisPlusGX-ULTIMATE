@@ -11,6 +11,10 @@ Left out of this copy: the platform front ends other than `common`,
 libchdr (CHD images, built with `use_libchdr=0`), and of `dr_libs` all but
 `dr_mp3.h`.
 
+Changed: `Byteswap()` in `pico/cart.c` copies the data on big endian CPUs
+when the destination is another buffer (it did nothing there, so the 32X BIOS
+files were never copied on the Wii and the games stayed on a black screen).
+
 Added: `Makefile.gx` and `pico32x_keep.txt`, which build the core for the Wii
 and make `picodrive_core.o` of it (see `Makefile.wii`), and this file. The front end
 is `gx/pico32x.c`.

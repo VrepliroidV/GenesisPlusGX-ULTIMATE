@@ -1702,6 +1702,14 @@ gx_texture *gxTextureOpenPNG(const u8 *png_data, FILE *png_file)
   u32 bit_depth = png_get_bit_depth(png_ptr,info_ptr);
   u32 color_type = png_get_color_type(png_ptr,info_ptr);
 
+  /* 4x4 tiles are required (also for the images built into the app: the
+     tile conversion below would write past the texture) */
+  if ((width%4) || (height%4))
+  {
+    png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
+    return NULL;
+  }
+
   /* ensure PNG file is in the supported format */
   if (png_file)
   {

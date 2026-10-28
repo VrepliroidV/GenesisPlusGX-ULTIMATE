@@ -120,7 +120,7 @@ static gui_image bg_filesel[15] =
   {NULL,NULL,0,392,118,232,148,255},
   {NULL,NULL,0,414,116,184,188,255},
   {NULL,NULL,0,416,144,180,228,255},
-  {NULL,NULL,0,386,137,247,173,255}
+  {NULL,NULL,0,386,137,248,176,255}
 };
 
 /* Screenshot area (bg_filesel[7] and [8]): the label of the cartridge, smaller

@@ -338,9 +338,9 @@ static gui_item items_ctrls[] =
 /* Load menu */
 static gui_item items_load[] =
 {
-  {NULL,Load_32x_png,   "","Load Sega 32X games",           112,141,84, 92},
+  {NULL,Load_32x_png,   "","Load Sega 32X games",           112,141,84, 96},
   {NULL,Load_md_png,    "","Load Mega Drive/Genesis games", 278,141,84, 92},
-  {NULL,Load_cd_png,    "","Load Sega/Mega CD games",       454,141,64, 92},
+  {NULL,Load_cd_png,    "","Load Sega/Mega CD games",       444,141,84, 96},
   {NULL,Load_ms_png,    "","Load Master System games",      114,284,84, 96},
   {NULL,Load_gg_png,    "","Load Game Gear games",          278,283,84,100},
   {NULL,Load_sg_png,    "","Load SG-1000 games",            454,281,64, 96}

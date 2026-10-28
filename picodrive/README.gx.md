@@ -21,6 +21,10 @@ optimization, idle loop detection and the SH-2 cycles (`picodrive_gx_*`), and
 sets the SH-2 cores up again when the recompiler is turned on or off during a
 game. They are in Genesis Plus GX ULTIMATE's System Settings > 32X Settings.
 
+Changed: `retro_unload_game()` (with `GPGX_ULTIMATE`) frees the game (ROM, 32X
+memory, recompiler tables, about 11 MB with a 4 MB game) at once, instead of
+at the next load: Genesis Plus GX ULTIMATE goes on with its own games.
+
 Changed: `pico/32x/32x.c` (with `GPGX_ULTIMATE`) counts the time each SH-2
 runs (`gx_sh2_run_cycles`, with `gx_32x_cycles()` for the 68k cycle count),
 for the automatic SH-2 overclock of `gx/pico32x.c`, which sets the speeds with

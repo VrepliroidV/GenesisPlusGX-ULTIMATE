@@ -1827,6 +1827,15 @@ bool retro_load_game_special(unsigned game_type, const struct retro_game_info *i
 
 void retro_unload_game(void)
 {
+#ifdef GPGX_ULTIMATE
+   /* Genesis Plus GX ULTIMATE goes on with its own games: the ROM, the 32X
+      memory and the recompiler tables are freed now, not at the next load
+      (PicoLoadMedia unloads a game the same way) */
+   if ((PicoIn.AHW & PAHW_MCD) && Pico_mcd != NULL)
+      cdd_unload();
+   PicoCartUnload();
+   PicoIn.AHW = 0;
+#endif
 }
 
 unsigned retro_get_region(void)

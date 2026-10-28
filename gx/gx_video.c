@@ -704,7 +704,8 @@ static void gxSetAspectRatio(int *xscale, int *yscale)
     /* Wii/Gamecube pixel clock = 13.5 Mhz */
     /* "H32" pixel clock = Master Clock / 10 = 5.3693175 Mhz (NTSC) or 5.3203424 Mhz (PAL) */
     /* "H40" pixel clock = Master Clock / 8 = 6.711646875 Mhz (NTSC) or 6.650428 Mhz (PAL) */
-    if (config.overscan & 2)
+    /* (the 32X picture of PicoDrive has no borders: H40 without them) */
+    if ((config.overscan & 2) && !pico32x_active)
     {
       /* Horizontal borders are emulated */
       if (reg[12] & 1)
@@ -747,8 +748,8 @@ static void gxSetAspectRatio(int *xscale, int *yscale)
     /* By default, disable horizontal scaling */
     *xscale = bitmap.viewport.w + (2 * bitmap.viewport.x);
       
-    /* Keep original aspect ratio in H32 modes */
-    if (!(reg[12] & 1))
+    /* Keep original aspect ratio in H32 modes (the 32X picture is H40) */
+    if (!(reg[12] & 1) && !pico32x_active)
     {
         *xscale = (*xscale * 320) / 256;
     }

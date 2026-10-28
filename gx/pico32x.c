@@ -46,6 +46,8 @@ static int sram_size = 0;
 #define FIFO_FRAMES 4096
 static int16 fifo[FIFO_FRAMES * 2];
 static int fifo_len = 0;
+static double out_frac = 0.0;   /* samples owed to the next frame */
+static double read_pos = 0.0;   /* position in the FIFO, between two samples */
 
 /* Core options: the recompiler, the "Good" renderer (both as tested on
    the Wii), the sound rate the video needs and the region of the settings */
@@ -393,9 +395,6 @@ void pico32x_frame(void)
    above or below 48 kHz, to stay in sync with the video): PicoDrive makes
    48000 samples per second of video, read here a little faster or slower.
    A multiple of 8 samples (32 bytes), at most 1024. */
-static double out_frac = 0.0;   /* samples owed to the next frame */
-static double read_pos = 0.0;   /* position in the FIFO, between two samples */
-
 int pico32x_audio(int16 *out)
 {
   double fps = (snd.frame_rate > 0.0) ? snd.frame_rate : (vdp_pal ? 50.0 : 60.0);

@@ -1,5 +1,5 @@
 # Genesis Plus GX ULTIMATE: the Sega 32X, emulated by this PicoDrive libretro
-# core. It is built for the Wii and made into one object, pico32x.o, whose
+# core. It is built for the Wii and made into one object, picodrive_core.o, whose
 # only global symbols are the libretro API and the 32X BIOS pointers: the
 # rest (zlib, Tremor, the CPU cores...) cannot clash with Genesis Plus GX.
 #

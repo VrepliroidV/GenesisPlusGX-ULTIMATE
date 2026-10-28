@@ -1,6 +1,7 @@
 /* Tests of the Genesis Plus GX libretro core through its API (dlopen): the
    automatic overclock of the main and Sega CD CPU, its indicator and Auto
-   Crop, with the programs of make_test_programs.py.
+   Crop (Mega Drive, Master System, Game Gear), with the programs of
+   make_test_programs.py.
 
    libretro_test <core> <folder>/test.md [<folder>/test-cd.iso]
    (run in that folder: it holds bios_CD_U.bin)
@@ -100,6 +101,27 @@ static unsigned run(double load, unsigned reg1, unsigned frames)
   return (end - start) & 0xffff;
 }
 
+/* the same with another program of the folder */
+static unsigned run_rom(const char *path, unsigned frames)
+{
+  static uint8_t saved[sizeof(rom)];
+  const size_t saved_size = rom_size;
+  const char *saved_path = rom_path;
+  unsigned done;
+  FILE *f = fopen(path, "rb");
+  if (!f) { printf("open failed %s\n", path); exit(1); }
+  memcpy(saved, rom, sizeof(rom));
+  memset(rom, 0, sizeof(rom));
+  rom_size = fread(rom, 1, sizeof(rom), f);
+  fclose(f);
+  rom_path = path;
+  done = run(0.3, 0x74, frames);
+  memcpy(rom, saved, sizeof(rom));
+  rom_size = saved_size;
+  rom_path = saved_path;
+  return done;
+}
+
 /* the same with the fake Mega CD: frames the sub 68k finished */
 static unsigned run_cd(const char *iso, double load, unsigned frames)
 {
@@ -180,6 +202,26 @@ int main(int argc, char **argv)
   run(0.3, 0x74, 1100);
   snprintf(text, sizeof(text), "Auto Crop (fit): %ux%u aspect %.3f", fw, fh, geometry_aspect);
   check(fw == 320 && fh == 224, text);
+  /* Auto Crop removes the borders whatever their colour (the backdrop colour
+     of the game), and the screen around the Game Gear one */
+  opt_crop = "disabled";
+  run_rom("test.sms", 200);
+  snprintf(text, sizeof(text), "Master System with the borders, no Auto Crop: %ux%u", fw, fh);
+  check(fw == 284 && fh == 240, text);
+  opt_crop = "stretch";
+  run_rom("test-blue.md", 200);
+  snprintf(text, sizeof(text), "Auto Crop, Mega Drive on a blue backdrop: %ux%u, geometry %ux%u", fw, fh, geometry_w, geometry_h);
+  check(fw == 320 && fh == 224 && geometry_w == 320 && geometry_h == 224, text);
+  run_rom("test.sms", 200);
+  snprintf(text, sizeof(text), "Auto Crop, Master System on a blue backdrop, left column blanked: %ux%u", fw, fh);
+  check(fw == 248 && fh == 192, text);
+  run_rom("test.gg", 200);
+  snprintf(text, sizeof(text), "Auto Crop, Game Gear: %ux%u", fw, fh);
+  check(fw == 160 && fh == 144, text);
+  opt_crop = "fit";
+  run_rom("test.gg", 200);
+  snprintf(text, sizeof(text), "Auto Crop (fit), Game Gear: %ux%u", fw, fh);
+  check(fw == 160 && fh == 144, text);
   opt_crop = "disabled";
   opt_overscan = "disabled";
 

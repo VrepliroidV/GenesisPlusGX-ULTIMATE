@@ -1980,11 +1980,11 @@ static void autocrop_text(gui_item *item)
   else
     sprintf (item->text, "Auto Crop: OFF");
   if (config.autocrop == AUTOCROP_FIT)
-    strcpy (item->comment, "Crop black borders, keep the pixel proportions");
+    strcpy (item->comment, "Crop borders and black bars, keep pixel shape");
   else if (config.autocrop == AUTOCROP_STRETCH)
-    strcpy (item->comment, "Crop black borders, fill the frame");
+    strcpy (item->comment, "Crop borders and black bars, fill the frame");
   else
-    strcpy (item->comment, "Crop black borders around the game picture");
+    strcpy (item->comment, "Crop the borders and black bars of the game");
 }
 
 static void autocrop_scale_text(gui_item *item)

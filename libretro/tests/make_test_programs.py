@@ -5,6 +5,13 @@ test.md: a white picture on a black backdrop (plane A full of tile 1); each
 frame VDP register 1 = $FF0006, a SUBQ/BNE loop $FF0002 turns long, wait for
 VINT ($FF0000 set by it), and one finished frame counted in $FF000C.
 
+test-blue.md: the same picture on a blue backdrop (colour 0), for the borders
+in the backdrop colour that Auto Crop removes as well.
+
+test.sms and test.gg: a white picture (name table full of tile 1) on a blue
+backdrop, Mode 4, display on, the leftmost 8 pixels blanked (register 0 bit
+5); then a loop.
+
 bios_CD_U.bin and test-cd.iso: a fake Mega CD. The main 68k copies a sub
 program into PRG-RAM and starts the sub 68k; at each VINT it passes the work
 count from $FF0002 in comm command 0, copies comm status 0 (frames the sub
@@ -61,6 +68,44 @@ struct.pack_into(">II", rom, 0x1A0, 0, len(rom) - 1)
 struct.pack_into(">II", rom, 0x1A8, 0xFF0000, 0xFFFFFF)
 rom[0x1F0:0x1F3] = b"JUE"
 open(os.path.join(out, "test.md"), "wb").write(rom)
+blue = rom.replace(bytes.fromhex("30BC0000 30BC0EEE".replace(" ", "")), bytes.fromhex("30BC0E00 30BC0EEE".replace(" ", "")))
+assert blue != rom
+open(os.path.join(out, "test-blue.md"), "wb").write(blue)
+
+# --- test.sms, test.gg ---
+def z80_program(gg):
+    c = bytearray()
+    def b(h): c.extend(bytes.fromhex(h.replace(" ", "")))
+    def out_ctrl(lo, hi): b("3E%02X D3BF 3E%02X D3BF" % (lo, hi))   # ld a,lo ; out ($BF),a ; ld a,hi ; out ($BF),a
+    b("F3 ED56 3100DF")                            # di ; im 1 ; ld sp,$DF00
+    # registers: 0 = Mode 4 + left column blank, 1 = display on, name table $3800,
+    # sprite table $3F00, backdrop = sprite colour 0
+    for reg, value in enumerate((0x24, 0xC0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFB, 0x00, 0x00, 0x00, 0xFF)):
+        out_ctrl(value, 0x80 | reg)
+    out_ctrl(0x20, 0x40)                           # VRAM $0020: tile 1, colour 1
+    b("0608 3EFF D3BE AF D3BE D3BE D3BE 10F3")     # 8 rows: $FF,0,0,0 (djnz back 13 bytes)
+    out_ctrl(0x00, 0x7F)                           # VRAM $3F00: no sprites
+    b("3ED0 D3BE")
+    out_ctrl(0x00, 0x78)                           # VRAM $3800: 32x28 entries of tile 1
+    b("018003 3E01 D3BE AF D3BE 0B 78 B1 20F4")  # (jr nz back 12 bytes)
+    out_ctrl(0x00, 0xC0)                           # CRAM 0
+    if gg:
+        # 12-bit colours, 2 bytes: 0 black, 1 white, 16 blue
+        b("AF D3BE D3BE 3EFF D3BE 3E0F D3BE")
+        b("061C AF D3BE 10FB")                     # colours 2 to 15
+        b("AF D3BE 3E0F D3BE")
+    else:
+        # 6-bit colours: 0 black, 1 white, 16 blue
+        b("AF D3BE 3E3F D3BE")
+        b("060E AF D3BE 10FB")
+        b("3E30 D3BE")
+    b("18FE")                                      # jr $
+    rom = bytearray(0x8000)
+    rom[0:len(c)] = c
+    rom[0x7FF0:0x7FF8] = b"TMR SEGA"
+    return rom
+open(os.path.join(out, "test.sms"), "wb").write(z80_program(False))
+open(os.path.join(out, "test.gg"), "wb").write(z80_program(True))
 
 # --- fake Mega CD ---
 def put(buf, addr, hexs):

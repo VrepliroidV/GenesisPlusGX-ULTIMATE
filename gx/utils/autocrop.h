@@ -23,8 +23,11 @@
  * Libretro core (https://github.com/VrepliroidV/snes9x-ntsc-lie-pal), with the
  * same rules:
  *
- *  - Lines drawn with the display off (hardware rows) are cropped after 2
- *    frames, as long as the picture between them is not mostly dark.
+ *  - Lines drawn with the display off or as border (hardware rows, any
+ *    colour) are cropped after 2 frames, as long as the picture between them
+ *    is not mostly dark.
+ *  - Fixed borders given by the emulator (autocrop_view_border) are always
+ *    cropped, whatever their colour.
  *  - Lines of one single dim colour (dark grey bars) count as border too.
  *  - Borders that are only dark pixels are cropped only on screens that look
  *    like gameplay: the picture fills at least 40% of the screen, each border
@@ -108,13 +111,16 @@ typedef struct
 
 typedef struct
 {
-	const uint16_t *pixels;       /* RGB565, top-left pixel of the frame */
+	const uint16_t *pixels;       /* RGB565, top-left pixel of the buffer */
 	int pitch;                    /* pixels per row; texture width when tiled */
 	int tiled;                    /* GX texture layout: 4x4 pixel tiles */
+	int x0, y0;                   /* top-left pixel of the frame in the buffer
+	                                 (0, 0 unless fixed borders are left out) */
 	int width, height;            /* in pixels */
 	int vscale;                   /* output rows per emulated line (1 or 2) */
-	const uint8_t *hardware_rows; /* per output row, non-zero when drawn with
-	                                 the display off; may be NULL */
+	const uint8_t *hardware_rows; /* per output row of the frame, non-zero when
+	                                 drawn with the display off or as border
+	                                 (a border whatever its colour); may be NULL */
 } autocrop_frame;
 
 /* Forgets everything, including the layouts learned for the game. */
@@ -145,6 +151,14 @@ int autocrop_save_layouts(autocrop_state *state, const char *path);
    until it meets a box of the screen's shape around the original frame. */
 void autocrop_view(const autocrop_state *state, int mode, int width, int lines, float xroom, float yroom,
                    float *u0, float *u1, float *v0, float *v1, float *xsize, float *ysize);
+
+/* The same for a frame with fixed borders that the crop always removes,
+   whatever their colour (the borders an emulator draws around the picture):
+   border[] holds their lines (top, bottom) and pixels (left, right), and
+   the frames measured by autocrop_process were the area inside them. */
+void autocrop_view_border(const autocrop_state *state, int mode, int width, int lines,
+                          const int border[AUTOCROP_SIDES], float xroom, float yroom,
+                          float *u0, float *u1, float *v0, float *v1, float *xsize, float *ysize);
 
 #ifdef __cplusplus
 }

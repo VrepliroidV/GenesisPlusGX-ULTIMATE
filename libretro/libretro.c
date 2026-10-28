@@ -207,6 +207,11 @@ static int auto_crop_mode = AUTOCROP_OFF;
 static autocrop_state auto_crop;
 static char auto_crop_file[1024];     /* layouts learned for the game, or empty */
 static bool auto_crop_geometry;       /* the crop changed: new geometry */
+/* borders drawn around the game (Borders option, Game Gear screen, blanked
+   left column): always cropped, in lines (top, bottom) and output pixels */
+static int auto_crop_border[AUTOCROP_SIDES];
+static int auto_crop_left_blank;      /* frames the left column has been blanked */
+#define AUTO_CROP_LEFT_BLANK_FRAMES 10
 
 /* Part of the bitmap sent to the frontend: the left border hidden on 8-bit
    systems (offset in bytes, width in pixels left out). */
@@ -230,7 +235,58 @@ static int frame_vscale(void)
    return (config.render && interlaced) ? 2 : 1;
 }
 
-/* The part of a width x height output frame shown with the current crop. */
+/* The borders drawn around the game picture, whatever their colour (the
+   backdrop colour of the game): the Borders option, the rest of the screen
+   around the Game Gear one and the leftmost 8 pixels when the game blanks
+   them (unless Hide Master System Side Borders already does). Auto Crop
+   always removes them and looks for black borders in the picture inside. */
+static void auto_crop_borders(int border[AUTOCROP_SIDES])
+{
+   int bmdoffset, vwoffset, x = 0, y = 0, left = 0;
+   const int source = bitmap.viewport.w + 2 * bitmap.viewport.x; /* before the NTSC filter */
+
+   memset(border, 0, sizeof(int) * AUTOCROP_SIDES);
+   if (source <= 0)
+      return;
+   left_border_offsets(&bmdoffset, &vwoffset);
+
+   if (bitmap.viewport.x > 0)
+      x = bitmap.viewport.x;
+   if (bitmap.viewport.y > 0)
+      y = bitmap.viewport.y;
+   border[AUTOCROP_TOP] = border[AUTOCROP_BOTTOM] = y;
+
+   if ((system_hw == SYSTEM_GG) && !config.gg_extra)
+   {
+      /* the 160x144 screen of the Game Gear, in the middle of the 256 pixels
+         and active lines (only there with the borders) */
+      if (bitmap.viewport.x > 0)
+         x += 48;
+      if ((bitmap.viewport.y > 0) && (bitmap.viewport.h > 144))
+      {
+         border[AUTOCROP_TOP] += (bitmap.viewport.h - 144) / 2;
+         border[AUTOCROP_BOTTOM] += bitmap.viewport.h - 144 - (bitmap.viewport.h - 144) / 2;
+      }
+      auto_crop_left_blank = 0;
+   }
+   else if ((reg[0] & 0x20) && (system_hw >= SYSTEM_MARKIII) && !vwoffset)
+   {
+      /* leftmost 8 pixels in the backdrop colour, once it stays */
+      if (auto_crop_left_blank < AUTO_CROP_LEFT_BLANK_FRAMES)
+         auto_crop_left_blank++;
+      if (auto_crop_left_blank >= AUTO_CROP_LEFT_BLANK_FRAMES)
+         left = 8;
+   }
+   else
+      auto_crop_left_blank = 0; /* back at once: the column shows the game */
+
+   /* output pixels (wider with the NTSC filter), rounded down */
+   border[AUTOCROP_LEFT] = ((x + left) * vwidth) / source;
+   border[AUTOCROP_RIGHT] = (x * vwidth) / source;
+}
+
+/* The part of a width x height output frame shown with the current crop:
+   the borders, then the crop of the picture inside them. */
 static void auto_crop_rect(int width, int height, int *left, int *top, int *w, int *h)
 {
    *left = 0;
@@ -239,17 +295,24 @@ static void auto_crop_rect(int width, int height, int *left, int *top, int *w, i
    *h = height;
    if (auto_crop_mode != AUTOCROP_OFF)
    {
-      /* horizontal edges rounded inward (wider NTSC filtered frames) */
-      const int l = (auto_crop.applied[AUTOCROP_LEFT] * width + AUTOCROP_UNITS - 1) / AUTOCROP_UNITS;
-      const int r = (auto_crop.applied[AUTOCROP_RIGHT] * width + AUTOCROP_UNITS - 1) / AUTOCROP_UNITS;
-      const int t = auto_crop.applied[AUTOCROP_TOP] * frame_vscale();
-      const int b = auto_crop.applied[AUTOCROP_BOTTOM] * frame_vscale();
-      if ((l + r < width) && (t + b < height))
+      const int vs = frame_vscale();
+      int bl = auto_crop_border[AUTOCROP_LEFT], br = auto_crop_border[AUTOCROP_RIGHT];
+      int bt = auto_crop_border[AUTOCROP_TOP] * vs, bb = auto_crop_border[AUTOCROP_BOTTOM] * vs;
+      if ((bl + br + 16 > width) || (bt + bb + 16 * vs > height))
+         bl = br = bt = bb = 0;
       {
-         *left = l;
-         *top = t;
-         *w = width - l - r;
-         *h = height - t - b;
+         const int iw = width - bl - br, ih = height - bt - bb;
+         /* horizontal edges rounded inward (wider NTSC filtered frames) */
+         int l = (auto_crop.applied[AUTOCROP_LEFT] * iw + AUTOCROP_UNITS - 1) / AUTOCROP_UNITS;
+         int r = (auto_crop.applied[AUTOCROP_RIGHT] * iw + AUTOCROP_UNITS - 1) / AUTOCROP_UNITS;
+         int t = auto_crop.applied[AUTOCROP_TOP] * vs;
+         int b = auto_crop.applied[AUTOCROP_BOTTOM] * vs;
+         if ((l + r >= iw) || (t + b >= ih))
+            l = r = t = b = 0;
+         *left = bl + l;
+         *top = bt + t;
+         *w = iw - l - r;
+         *h = ih - t - b;
       }
    }
 }
@@ -3768,6 +3831,8 @@ bool retro_load_game(const struct retro_game_info *info)
 
    /* Auto Crop: layouts learned for the game, next to its saves */
    autocrop_reset(&auto_crop);
+   memset(auto_crop_border, 0, sizeof(auto_crop_border));
+   auto_crop_left_blank = 0;
    auto_crop_file[0] = '\0';
    if (save_dir && g_rom_name[0])
    {
@@ -4062,13 +4127,28 @@ void retro_run(void)
    if ((auto_crop_mode != AUTOCROP_OFF) && !do_skip)
    {
       autocrop_frame frame;
+      int border[AUTOCROP_SIDES];
+
+      /* the borders around the picture (the crop of the picture inside them
+         is measured again when they change) */
+      auto_crop_borders(border);
+      if (memcmp(border, auto_crop_border, sizeof(auto_crop_border)))
+      {
+         memcpy(auto_crop_border, border, sizeof(auto_crop_border));
+         autocrop_reset_tracking(&auto_crop);
+         auto_crop_geometry = true;
+      }
+
+      /* the picture inside the borders */
       frame.pixels = (const uint16_t *)(bitmap.data + bmdoffset);
       frame.pitch = 720;
       frame.tiled = 0;
-      frame.width = vwidth - vwoffset;
-      frame.height = vheight;
       frame.vscale = frame_vscale();
-      frame.hardware_rows = (vheight <= LINE_BLANK_ROWS) ? line_blank_rows : NULL;
+      frame.x0 = border[AUTOCROP_LEFT];
+      frame.y0 = border[AUTOCROP_TOP] * frame.vscale;
+      frame.width = vwidth - vwoffset - border[AUTOCROP_LEFT] - border[AUTOCROP_RIGHT];
+      frame.height = vheight - (border[AUTOCROP_TOP] + border[AUTOCROP_BOTTOM]) * frame.vscale;
+      frame.hardware_rows = (vheight <= LINE_BLANK_ROWS) ? (line_blank_rows + frame.y0) : NULL;
       if (autocrop_process(&auto_crop, &frame))
          auto_crop_geometry = true;
       if (auto_crop.layouts_changed && auto_crop_file[0])

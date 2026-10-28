@@ -69,6 +69,8 @@ static inline int ac_max(int a, int b) { return a > b ? a : b; }
 
 static inline uint16_t ac_pixel(const autocrop_frame *f, int x, int y)
 {
+	x += f->x0;
+	y += f->y0;
 	if (f->tiled)
 		return f->pixels[((((y >> 2) * (f->pitch >> 2)) + (x >> 2)) << 4) + ((y & 3) << 2) + (x & 3)];
 	return f->pixels[(ptrdiff_t)y * f->pitch + x];
@@ -152,11 +154,12 @@ static int ac_measure(const autocrop_frame *f, int raw[AUTOCROP_SIDES], int trus
 	const int base_height = h / vs;
 	int top = 0, bottom = 0, left = 0, right = 0;
 
-	while (top < h && ac_row_border(f, top))
+	/* display-off and border lines are border whatever their colour */
+	while (top < h && (ac_hardware(f, top) || ac_row_border(f, top)))
 		top++;
 	if (top == h)
 		return 0;
-	while (bottom < h - top && ac_row_border(f, h - 1 - bottom))
+	while (bottom < h - top && (ac_hardware(f, h - 1 - bottom) || ac_row_border(f, h - 1 - bottom)))
 		bottom++;
 
 	const int y0 = top, y1 = h - bottom;
@@ -570,17 +573,44 @@ int autocrop_save_layouts(autocrop_state *state, const char *path)
 void autocrop_view(const autocrop_state *state, int mode, int width, int lines, float xroom, float yroom,
                    float *u0, float *u1, float *v0, float *v1, float *xsize, float *ysize)
 {
+	autocrop_view_border(state, mode, width, lines, NULL, xroom, yroom, u0, u1, v0, v1, xsize, ysize);
+}
+
+void autocrop_view_border(const autocrop_state *state, int mode, int width, int lines,
+                          const int border[AUTOCROP_SIDES], float xroom, float yroom,
+                          float *u0, float *u1, float *v0, float *v1, float *xsize, float *ysize)
+{
 	*u0 = *v0 = 0.0f;
 	*u1 = *v1 = 1.0f;
 	*xsize = *ysize = 1.0f;
 	if (mode == AUTOCROP_OFF || width <= 0 || lines <= 0)
 		return;
 
-	/* Round horizontal edges inward to whole pixels. */
-	const int left = (state->applied[AUTOCROP_LEFT] * width + AUTOCROP_UNITS - 1) / AUTOCROP_UNITS;
-	const int right = (state->applied[AUTOCROP_RIGHT] * width + AUTOCROP_UNITS - 1) / AUTOCROP_UNITS;
-	const int top = state->applied[AUTOCROP_TOP], bottom = state->applied[AUTOCROP_BOTTOM];
-	if (left + right >= width || top + bottom >= lines)
+	/* The fixed borders, when they leave a picture. */
+	int fixed[AUTOCROP_SIDES] = { 0, 0, 0, 0 };
+	if (border)
+	{
+		for (int side = 0; side < AUTOCROP_SIDES; side++)
+			fixed[side] = ac_max(0, border[side]);
+		if (fixed[AUTOCROP_LEFT] + fixed[AUTOCROP_RIGHT] + 16 > width ||
+		    fixed[AUTOCROP_TOP] + fixed[AUTOCROP_BOTTOM] + 16 > lines)
+			memset(fixed, 0, sizeof(fixed));
+	}
+	const int inner_width = width - fixed[AUTOCROP_LEFT] - fixed[AUTOCROP_RIGHT];
+	const int inner_lines = lines - fixed[AUTOCROP_TOP] - fixed[AUTOCROP_BOTTOM];
+
+	/* The crop of the picture inside them; horizontal edges rounded inward to
+	   whole pixels. */
+	int left = (state->applied[AUTOCROP_LEFT] * inner_width + AUTOCROP_UNITS - 1) / AUTOCROP_UNITS;
+	int right = (state->applied[AUTOCROP_RIGHT] * inner_width + AUTOCROP_UNITS - 1) / AUTOCROP_UNITS;
+	int top = state->applied[AUTOCROP_TOP], bottom = state->applied[AUTOCROP_BOTTOM];
+	if (left + right >= inner_width || top + bottom >= inner_lines)
+		left = right = top = bottom = 0;
+	left += fixed[AUTOCROP_LEFT];
+	right += fixed[AUTOCROP_RIGHT];
+	top += fixed[AUTOCROP_TOP];
+	bottom += fixed[AUTOCROP_BOTTOM];
+	if (!left && !right && !top && !bottom)
 		return;
 
 	*u0 = (float)left / width;

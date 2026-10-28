@@ -254,7 +254,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "genesis_plus_gx_auto_crop",
       "Auto Crop Black Borders",
       NULL,
-      "Detect black borders around the game picture and show only the game area. Each screen is checked separately: graphics reaching a cropped area are shown again immediately, new borders are cropped once they stay unchanged, and borders already seen in the game are cropped at once. 'Fit' keeps the pixel proportions; 'Stretch' fills the original frame. Set RetroArch's aspect ratio to 'Core provided'.",
+      "Remove the borders drawn around the game picture (Borders option, whatever their colour, and the screen around the Game Gear one), detect black borders inside it and show only the game area. Each screen is checked separately: graphics reaching a cropped area are shown again immediately, new borders are cropped once they stay unchanged, and borders already seen in the game are cropped at once. 'Fit' keeps the pixel proportions; 'Stretch' fills the original frame. Set RetroArch's aspect ratio to 'Core provided'.",
       NULL,
       "video",
       {

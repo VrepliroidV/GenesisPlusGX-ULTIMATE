@@ -352,6 +352,11 @@ static int autocrop_dirty = 0;           /* the quad must be updated */
 static u32 autocrop_width, autocrop_height; /* texture size the crop belongs to */
 static int autocrop_scale = AUTOCROP_SCALE_SMOOTH; /* scaling the quad was set for */
 static int quad_x, quad_y, quad_xshift, quad_yshift; /* whole frame: half size and centre */
+/* borders drawn around the game (Borders option, Game Gear screen, blanked
+   left column): always cropped, in lines (top, bottom) and texture pixels */
+static int crop_border[AUTOCROP_SIDES];
+static int left_blank_frames = 0; /* frames the left column has been blanked */
+#define LEFT_BLANK_FRAMES 10
 static f32 tex_u0 = 0.0, tex_u1 = 1.0, tex_v0 = 0.0, tex_v1 = 1.0; /* visible part of the texture */
 
 /*** Sharp scaling of the auto crop (bilinear filter off) ***
@@ -797,7 +802,68 @@ static void gxAutoCropView(f32 *u0, f32 *u1, f32 *v0, f32 *v1, f32 *xsize, f32 *
     xroom = (f32)rmode->fbWidth / (2 * quad_x);
     yroom = (f32)rmode->efbHeight / (2 * quad_y);
   }
-  autocrop_view(&autocrop, autocrop_mode, vwidth, vheight / gxAutoCropScale(), xroom, yroom, u0, u1, v0, v1, xsize, ysize);
+  autocrop_view_border(&autocrop, autocrop_mode, vwidth, vheight / gxAutoCropScale(), crop_border, xroom, yroom, u0, u1, v0, v1, xsize, ysize);
+}
+
+/* The borders Genesis Plus GX draws around the game picture, whatever their
+   colour (the backdrop colour of the game): the Borders option, the rest of
+   the screen around the Game Gear one and the leftmost 8 pixels when the
+   game blanks them. The auto crop always removes them; it looks for black
+   borders in the picture inside them. */
+static void gxAutoCropBorder(int border[AUTOCROP_SIDES])
+{
+  int x = 0, y = 0, left = 0;
+  int source = bitmap.viewport.w + 2 * bitmap.viewport.x; /* frame width before the NTSC filter */
+
+  memset(border, 0, sizeof(int) * AUTOCROP_SIDES);
+  if (pico32x_active || (source <= 0))
+  {
+    /* the picture of PicoDrive has no borders */
+    left_blank_frames = 0;
+    return;
+  }
+
+  if (bitmap.viewport.x > 0) x = bitmap.viewport.x;
+  if (bitmap.viewport.y > 0) y = bitmap.viewport.y;
+  border[AUTOCROP_TOP] = border[AUTOCROP_BOTTOM] = y;
+
+  if ((system_hw == SYSTEM_GG) && !config.gg_extra)
+  {
+    /* the 160x144 screen of the Game Gear in the middle of the 256 pixels and
+       active lines (only there with the borders, see vdp_ctrl.c) */
+    if (bitmap.viewport.x > 0)
+    {
+      x += 48;
+    }
+    if ((bitmap.viewport.y > 0) && (bitmap.viewport.h > 144))
+    {
+      border[AUTOCROP_TOP] += (bitmap.viewport.h - 144) / 2;
+      border[AUTOCROP_BOTTOM] += bitmap.viewport.h - 144 - (bitmap.viewport.h - 144) / 2;
+    }
+    left_blank_frames = 0;
+  }
+  else if ((reg[0] & 0x20) && (system_hw >= SYSTEM_MARKIII))
+  {
+    /* leftmost 8 pixels in the backdrop colour (render_line), once it stays */
+    if (left_blank_frames < LEFT_BLANK_FRAMES)
+    {
+      left_blank_frames++;
+    }
+    if (left_blank_frames >= LEFT_BLANK_FRAMES)
+    {
+      left = 8;
+    }
+  }
+  else
+  {
+    /* back at once: the column shows the game again */
+    left_blank_frames = 0;
+  }
+
+  /* texture pixels (wider with the NTSC filter): rounded down, a border
+     pixel is better left than a picture pixel cropped */
+  border[AUTOCROP_LEFT] = ((x + left) * (int)vwidth) / source;
+  border[AUTOCROP_RIGHT] = (x * (int)vwidth) / source;
 }
 
 /* Chooses the sharp scaling for a crop drawn at width x height EFB pixels */
@@ -977,17 +1043,22 @@ static void gxUpdateQuad(void)
 static int gxAutoCropMeasure(void)
 {
   autocrop_frame frame;
+  const int vscale = gxAutoCropScale();
   if ((vheight > LINE_BLANK_ROWS) || (vwidth & 3))
   {
     return 0;
   }
+  /* the picture inside the borders */
   frame.pixels = (const uint16_t *)bitmap.data;
   frame.pitch = vwidth;
   frame.tiled = 1;
-  frame.width = vwidth;
-  frame.height = vheight;
-  frame.vscale = gxAutoCropScale();
-  frame.hardware_rows = line_blank_rows;
+  frame.x0 = crop_border[AUTOCROP_LEFT];
+  frame.y0 = crop_border[AUTOCROP_TOP] * vscale;
+  frame.width = (int)vwidth - crop_border[AUTOCROP_LEFT] - crop_border[AUTOCROP_RIGHT];
+  frame.height = (int)vheight - (crop_border[AUTOCROP_TOP] + crop_border[AUTOCROP_BOTTOM]) * vscale;
+  frame.vscale = vscale;
+  /* lines drawn with the display off (not marked for the 32X picture) */
+  frame.hardware_rows = pico32x_active ? NULL : (line_blank_rows + frame.y0);
   return autocrop_process(&autocrop, &frame);
 }
 
@@ -1039,6 +1110,8 @@ void gx_video_AutoCropLoad(void)
   autocrop_reset(&autocrop);
   autocrop_mode = config.autocrop;
   autocrop_dirty = 1;
+  memset(crop_border, 0, sizeof(crop_border));
+  left_blank_frames = 0;
   if (!config.s_device && rom_filename[0])
   {
     snprintf(filename, sizeof(filename), "%s/saves/%s.autocrop", DEFAULT_PATH, rom_filename);
@@ -2243,9 +2316,22 @@ int gx_video_Update(int status)
     {
       autocrop_dirty = 1;
     }
-    if ((autocrop_mode != AUTOCROP_OFF) && gxAutoCropMeasure())
+    if (autocrop_mode != AUTOCROP_OFF)
     {
-      autocrop_dirty = 1;
+      /* borders drawn around the picture (the crop of the picture inside
+         them is measured again when they change) */
+      int border[AUTOCROP_SIDES];
+      gxAutoCropBorder(border);
+      if (memcmp(border, crop_border, sizeof(crop_border)))
+      {
+        memcpy(crop_border, border, sizeof(crop_border));
+        autocrop_reset_tracking(&autocrop);
+        autocrop_dirty = 1;
+      }
+      if (gxAutoCropMeasure())
+      {
+        autocrop_dirty = 1;
+      }
     }
     if (autocrop_dirty)
     {

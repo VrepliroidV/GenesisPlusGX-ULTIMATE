@@ -466,6 +466,16 @@ static void p32x_run_events(unsigned int until)
       oldest, event_time_next);
 }
 
+#ifdef GPGX_ULTIMATE
+/* Genesis Plus GX ULTIMATE, for its automatic SH-2 overclock: the time each
+   SH-2 ran (not idle) in 68k cycles, and the 68k cycle count */
+unsigned int gx_sh2_run_cycles[2];
+unsigned int gx_32x_cycles(void)
+{
+  return SekCyclesDone();
+}
+#endif
+
 static void run_sh2(SH2 *sh2, unsigned int m68k_cycles)
 {
   unsigned int cycles, done;
@@ -479,6 +489,9 @@ static void run_sh2(SH2 *sh2, unsigned int m68k_cycles)
   done = sh2_execute(sh2, cycles);
 
   sh2->m68krcycles_done += C_SH2_TO_M68K(sh2, done);
+#ifdef GPGX_ULTIMATE
+  gx_sh2_run_cycles[sh2->is_slave & 1] += C_SH2_TO_M68K(sh2, done);
+#endif
   sh2->state &= ~SH2_STATE_RUN;
   pevt_log_sh2_o(sh2, EVT_RUN_END);
   elprintf_sh2(sh2, EL_32X, "-run %u %d",

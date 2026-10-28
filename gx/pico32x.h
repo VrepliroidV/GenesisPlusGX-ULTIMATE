@@ -48,4 +48,11 @@ extern void pico32x_config_default(void);
 extern void pico32x_config_check(void);      /* values out of range back to the defaults */
 extern void pico32x_options_changed(void);   /* PicoDrive takes the settings again */
 
+/* Automatic SH-2 overclock (config.p32x_auto_oc): the SH-2 speeds go up to
+   the ones of the settings only while the game slows down */
+#define PICO32X_AUTO_OC_MAX 200   /* the speeds when it is turned on at 100% */
+extern void pico32x_autooc_reset(void);       /* no overclock until the game settles */
+extern int  pico32x_autooc_text(char *text, int size); /* on-screen state, 0 when off */
+extern int  pico32x_sh2_speed(int slave);     /* speed in use, percent */
+
 #endif

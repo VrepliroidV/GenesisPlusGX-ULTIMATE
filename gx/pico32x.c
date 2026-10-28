@@ -17,9 +17,16 @@
 #include "../picodrive/platform/libretro/libretro-common/include/libretro.h"
 #include "pico32x.h"
 #include "file_load.h"
+#include <ogc/lwp_watchdog.h>
 
 /* PicoDrive: the 32X BIOS images, NULL for its built-in replacement */
 extern void *p32x_bios_g, *p32x_bios_m, *p32x_bios_s;
+
+/* PicoDrive (picodrive/pico/32x/32x.c): SH-2 clocks, and the time each SH-2
+   ran and the 68k cycle count, for the automatic overclock */
+extern void Pico32xSetClocks(int msh2_hz, int ssh2_hz);
+extern unsigned int gx_sh2_run_cycles[2];
+extern unsigned int gx_32x_cycles(void);
 
 int pico32x_active = 0;
 
@@ -89,12 +96,12 @@ static const char *option_value(const char *key)
     return config.p32x_idle ? "enabled" : "disabled";
   if (!strcmp(key, "picodrive_gx_msh2_khz"))
   {
-    snprintf(opt_text[2], sizeof(opt_text[2]), "%d", PICO32X_SH2_KHZ * config.p32x_msh2 / 100);
+    snprintf(opt_text[2], sizeof(opt_text[2]), "%d", PICO32X_SH2_KHZ * pico32x_sh2_speed(0) / 100);
     return opt_text[2];
   }
   if (!strcmp(key, "picodrive_gx_ssh2_khz"))
   {
-    snprintf(opt_text[3], sizeof(opt_text[3]), "%d", PICO32X_SH2_KHZ * config.p32x_ssh2 / 100);
+    snprintf(opt_text[3], sizeof(opt_text[3]), "%d", PICO32X_SH2_KHZ * pico32x_sh2_speed(1) / 100);
     return opt_text[3];
   }
   if (!strcmp(key, "picodrive_sound_rate"))
@@ -129,6 +136,7 @@ void pico32x_config_default(void)
   config.p32x_ym2612 = 0;           /* YM3438, as PicoDrive's libretro core */
   config.p32x_fm_filter = 0;
   config.p32x_lowpass = 0;
+  config.p32x_auto_oc = 0;
 }
 
 void pico32x_config_check(void)
@@ -138,7 +146,7 @@ void pico32x_config_check(void)
       (config.p32x_ssh2 < 25) || (config.p32x_ssh2 > 300) ||
       (config.p32x_m68k_overclock > 400) || (config.p32x_idle > 1) || (config.p32x_pwm > 1) ||
       (config.p32x_pwm_irq_opt > 1) || (config.p32x_sprlim > 1) || (config.p32x_ym2612 > 1) ||
-      (config.p32x_fm_filter > 1) || (config.p32x_lowpass > 95))
+      (config.p32x_fm_filter > 1) || (config.p32x_lowpass > 95) || (config.p32x_auto_oc > 1))
   {
     pico32x_config_default();
   }
@@ -147,6 +155,206 @@ void pico32x_config_check(void)
 void pico32x_options_changed(void)
 {
   vars_changed = 1;
+}
+
+/****************************************************************************
+ * Automatic SH-2 overclock
+ *
+ * The slowdowns of 32X games come from the two SH-2s. Each frame PicoDrive
+ * counts the time each SH-2 ran: the rest of the frame it waited (PicoDrive
+ * recognises the SH-2 polling a register, the VDP or memory and puts it to
+ * sleep). When the busier SH-2 did not wait at all in a frame, the game is
+ * running late, and when that happens again the SH-2 speeds go up one level;
+ * when the frames would still have time left at the level below, they go
+ * down again. The levels go from 100% to the speeds of the settings, as the
+ * automatic 68k overclock of Genesis Plus GX (core/autooc.c), with the same
+ * thresholds. A level is never taken when the Wii itself would not make the
+ * frame in time (the time each frame took to emulate is measured), and the
+ * overclock starts only once the game was seen waiting.
+ ****************************************************************************/
+#define AOC_LEVELS        4
+#define AOC_LAG_BUSY      985   /* per mille of the frame the SH-2 ran: late */
+#define AOC_WAIT_BUSY     950   /* at most this: the game waited */
+#define AOC_DOWN_BUSY     850   /* at most this at the level below: go down */
+#define AOC_CALIBRATE     30    /* frames the SH-2s must be seen waiting */
+#define AOC_UP_WAIT       10    /* frames between two steps up */
+#define AOC_DOWN_FRAMES   120   /* frames with time left before a step down */
+#define AOC_DOWN_HOLD     180   /* frames without a step down after a step up */
+#define AOC_DOWN_HOLD_MAX 1800
+#define AOC_BOUNCE        300
+#define AOC_HOLD_START    180   /* frames off after a load, a reset or a state */
+#define AOC_HOST_MAX      900   /* per mille of the frame time the Wii may use */
+#define AOC_HOST_FRAMES   30    /* frames over it before a step down */
+
+static struct
+{
+  int level;
+  int pct[AOC_LEVELS][2];        /* master, slave speed of each level */
+  int busy;                      /* per mille of the last frame (busier SH-2) */
+  int host;                      /* per mille of the frame time it took to emulate */
+  int hold, up_wait, down_wait, down_hold, since_down, roomy, waited, host_late;
+  unsigned int lag_history;
+  unsigned int last_cycles;
+  int have_cycles;
+} aoc;
+
+static void aoc_levels(void)
+{
+  int i, s;
+  for (i = 0; i < AOC_LEVELS; i++)
+  {
+    for (s = 0; s < 2; s++)
+    {
+      float max = (s ? config.p32x_ssh2 : config.p32x_msh2) / 100.0;
+      if (max < 1.0)
+        max = 1.0;
+      aoc.pct[i][s] = (int)(powf(max, (float)i / (AOC_LEVELS - 1)) * 100.0 + 0.5);
+    }
+  }
+}
+
+int pico32x_sh2_speed(int slave)
+{
+  if (config.p32x_auto_oc)
+  {
+    aoc_levels();
+    return aoc.pct[(aoc.level < AOC_LEVELS) ? aoc.level : 0][slave ? 1 : 0];
+  }
+  return slave ? config.p32x_ssh2 : config.p32x_msh2;
+}
+
+static void aoc_set_level(int level)
+{
+  aoc.level = level;
+  aoc.lag_history = 0;
+  aoc.roomy = 0;
+  aoc.host_late = 0;
+  if (core_ready)
+  {
+    Pico32xSetClocks(PICO32X_SH2_KHZ * pico32x_sh2_speed(0) * 10, PICO32X_SH2_KHZ * pico32x_sh2_speed(1) * 10);
+  }
+}
+
+void pico32x_autooc_reset(void)
+{
+  aoc.hold = AOC_HOLD_START;
+  aoc.up_wait = aoc.down_wait = 0;
+  aoc.down_hold = AOC_DOWN_HOLD;
+  aoc.since_down = AOC_BOUNCE;
+  aoc.waited = 0;
+  aoc.busy = aoc.host = 0;
+  aoc.have_cycles = 0;
+  gx_sh2_run_cycles[0] = gx_sh2_run_cycles[1] = 0;
+  aoc_set_level(0);
+}
+
+int pico32x_autooc_text(char *text, int size)
+{
+  if (!pico32x_active || !config.p32x_auto_oc)
+  {
+    return 0;
+  }
+  return snprintf(text, size, "SH-2 %d%% %d%%", pico32x_sh2_speed(0), (aoc.busy + 5) / 10);
+}
+
+/* one emulated frame: host_us microseconds to emulate */
+static void aoc_end_frame(int host_us)
+{
+  unsigned int now = gx_32x_cycles();
+  unsigned int frame = now - aoc.last_cycles;
+  int run = gx_sh2_run_cycles[0] > gx_sh2_run_cycles[1] ? gx_sh2_run_cycles[0] : gx_sh2_run_cycles[1];
+  int fps = vdp_pal ? 50 : 60;
+  int busy, late, host_room;
+
+  gx_sh2_run_cycles[0] = gx_sh2_run_cycles[1] = 0;
+  aoc.last_cycles = now;
+  if (!aoc.have_cycles || !frame || (frame > 0x1000000))
+  {
+    aoc.have_cycles = 1;
+    return;
+  }
+
+  busy = (int)((long long)run * 1000 / frame);
+  if (busy > 1000)
+    busy = 1000;
+  aoc.busy = busy;
+  aoc.host = host_us * fps / 1000;   /* per mille of 1/fps s */
+
+  if (!config.p32x_auto_oc)
+  {
+    return;
+  }
+  if (aoc.hold > 0)
+  {
+    aoc.hold--;
+    aoc.lag_history = 0;
+    aoc.roomy = 0;
+    return;
+  }
+
+  /* the Wii does not make it: one level down */
+  if (aoc.host > AOC_HOST_MAX)
+  {
+    if ((aoc.level > 0) && (++aoc.host_late >= AOC_HOST_FRAMES))
+    {
+      aoc_set_level(aoc.level - 1);
+      aoc.since_down = 0;
+      aoc.up_wait = AOC_DOWN_HOLD;
+    }
+    return;
+  }
+  aoc.host_late = 0;
+
+  late = (busy >= AOC_LAG_BUSY);
+  if ((busy <= AOC_WAIT_BUSY) && (aoc.waited < AOC_CALIBRATE))
+    aoc.waited++;
+  aoc.lag_history = (aoc.lag_history << 1) | (late ? 1 : 0);
+  if (aoc.up_wait > 0)
+    aoc.up_wait--;
+  if (aoc.down_wait > 0)
+    aoc.down_wait--;
+  if (aoc.since_down < AOC_BOUNCE)
+    aoc.since_down++;
+
+  /* the next level would still leave the Wii time (the SH-2 part of the
+     emulation grows with the speed; counted on the whole frame, to be safe) */
+  host_room = (aoc.level < AOC_LEVELS - 1) &&
+              ((long long)aoc.host * aoc.pct[aoc.level + 1][0] <= (long long)AOC_HOST_MAX * aoc.pct[aoc.level][0]);
+
+  /* late again: one level up */
+  if (late && host_room && (aoc.waited >= AOC_CALIBRATE) && (aoc.up_wait == 0))
+  {
+    int late_frames = 0;
+    unsigned int bits;
+    for (bits = aoc.lag_history & 0xff; bits; bits &= bits - 1)
+      late_frames++;
+    if (late_frames >= 2)
+    {
+      if (aoc.since_down < AOC_BOUNCE)
+        aoc.down_hold = (aoc.down_hold * 2 > AOC_DOWN_HOLD_MAX) ? AOC_DOWN_HOLD_MAX : aoc.down_hold * 2;
+      else
+        aoc.down_hold = AOC_DOWN_HOLD;
+      aoc_set_level(aoc.level + 1);
+      aoc.up_wait = AOC_UP_WAIT;
+      aoc.down_wait = aoc.down_hold;
+      return;
+    }
+  }
+
+  /* enough time left for the level below */
+  if (aoc.level > 0)
+  {
+    int slower = (int)((long long)aoc.pct[aoc.level][0] * 1100 / aoc.pct[aoc.level - 1][0]);
+    if ((long long)busy * slower <= (long long)AOC_DOWN_BUSY * 1000)
+      aoc.roomy++;
+    else
+      aoc.roomy = 0;
+    if ((aoc.roomy >= AOC_DOWN_FRAMES) && (aoc.down_wait == 0))
+    {
+      aoc_set_level(aoc.level - 1);
+      aoc.since_down = 0;
+    }
+  }
 }
 
 static void core_log(enum retro_log_level level, const char *fmt, ...)
@@ -454,6 +662,8 @@ void pico32x_start(void)
     retro_set_controller_port_device(i, (dev == DEVICE_PAD6B) ? RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_JOYPAD, 1)
                                         : (dev == NO_DEVICE) ? RETRO_DEVICE_NONE : RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_JOYPAD, 0));
   }
+  /* the automatic SH-2 overclock starts again from 100% */
+  pico32x_autooc_reset();
 }
 
 void pico32x_frame(void)
@@ -461,7 +671,10 @@ void pico32x_frame(void)
   osd_input_update();
   pad_bits[0] = md_to_retro(input.pad[0]);
   pad_bits[1] = md_to_retro(input.pad[4]);
+
+  u64 start = gettime();
   retro_run();
+  aoc_end_frame(diff_usec(start, gettime()));
 }
 
 /* The samples of one frame for the audio DMA. Like audio_update(), it
@@ -518,6 +731,7 @@ int pico32x_audio(int16 *out)
 void pico32x_reset(void)
 {
   retro_reset();
+  pico32x_autooc_reset();
 }
 
 int pico32x_state_size(void)
@@ -532,7 +746,9 @@ int pico32x_state_save(uint8 *buffer, int size)
 
 int pico32x_state_load(const uint8 *buffer, int size)
 {
-  return retro_unserialize(buffer, size) ? 1 : 0;
+  int ok = retro_unserialize(buffer, size) ? 1 : 0;
+  pico32x_autooc_reset();
+  return ok;
 }
 
 void pico32x_sram_to_gpgx(void)

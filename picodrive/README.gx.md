@@ -21,6 +21,11 @@ optimization, idle loop detection and the SH-2 cycles (`picodrive_gx_*`), and
 sets the SH-2 cores up again when the recompiler is turned on or off during a
 game. They are in Genesis Plus GX ULTIMATE's System Settings > 32X Settings.
 
+Changed: `pico/32x/32x.c` (with `GPGX_ULTIMATE`) counts the time each SH-2
+runs (`gx_sh2_run_cycles`, with `gx_32x_cycles()` for the 68k cycle count),
+for the automatic SH-2 overclock of `gx/pico32x.c`, which sets the speeds with
+`Pico32xSetClocks()`.
+
 Added: `Makefile.gx` and `pico32x_keep.txt`, which build the core for the Wii
 and make `picodrive_core.o` of it (see `Makefile.wii`), and this file. The front end
 is `gx/pico32x.c`.

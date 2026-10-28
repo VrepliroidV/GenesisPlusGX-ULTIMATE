@@ -2431,9 +2431,17 @@ int gx_video_Update(int status)
         /* display on-screen message, with the automatic 68k overclock in use
            and how busy the 68k was (systems with a main 68k, and the sub
            68k of the Mega CD) */
-        int main_oc = autooc.enabled && ((system_hw & SYSTEM_PBC) == SYSTEM_MD);
+        int main_oc = autooc.enabled && ((system_hw & SYSTEM_PBC) == SYSTEM_MD) && !pico32x_active;
         int sub_oc = autooc_sub.enabled && (system_hw == SYSTEM_MCD);
-        if (main_oc || sub_oc)
+        char p32x_oc[32];
+        if (pico32x_autooc_text(p32x_oc, sizeof(p32x_oc)))
+        {
+          /* 32X game: the automatic SH-2 overclock (gx/pico32x.c) */
+          char text[80];
+          snprintf(text, sizeof(text), "%s\n%s", msg, p32x_oc);
+          gxDrawOnScreenText(text);
+        }
+        else if (main_oc || sub_oc)
         {
           char text[80];
           int len = sprintf(text, "%s\n", msg);

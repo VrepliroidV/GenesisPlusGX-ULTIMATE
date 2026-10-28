@@ -107,12 +107,12 @@ export OUTPUT	:=	$(CURDIR)/$(TARGET)
 .PHONY: $(BUILD) clean
 
 #---------------------------------------------------------------------------------
-# Sega 32X: the PicoDrive libretro core of picodrive/ as one object (pico32x.o),
+# Sega 32X: the PicoDrive libretro core of picodrive/ as one object (picodrive_core.o),
 # made first (picodrive/Makefile.gx). USE_DYNAMIC_ALLOC: the cartridge area
 # (15 MB) is allocated at start-up, which leaves room in MEM1 for PicoDrive.
 $(BUILD):
 	@[ -d $@ ] || mkdir -p $@
-	@$(MAKE) --no-print-directory -C picodrive -f Makefile.gx OUT=$(CURDIR)/$(BUILD)/pico32x.o
+	@$(MAKE) --no-print-directory -C picodrive -f Makefile.gx OUT=$(CURDIR)/$(BUILD)/picodrive_core.o
 	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile.wii
 
 #---------------------------------------------------------------------------------
@@ -131,7 +131,7 @@ DEPENDS	:=	$(OFILES:.o=.d)
 # main targets
 #---------------------------------------------------------------------------------
 $(OUTPUT).dol: $(OUTPUT).elf
-$(OUTPUT).elf: $(OFILES) pico32x.o
+$(OUTPUT).elf: $(OFILES) picodrive_core.o
 
 $(OFILES_SOURCES) : $(HFILES)
 

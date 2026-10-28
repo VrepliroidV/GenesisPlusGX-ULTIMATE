@@ -12,5 +12,5 @@ libchdr (CHD images, built with `use_libchdr=0`), and of `dr_libs` all but
 `dr_mp3.h`.
 
 Added: `Makefile.gx` and `pico32x_keep.txt`, which build the core for the Wii
-and make `pico32x.o` of it (see `Makefile.wii`), and this file. The front end
+and make `picodrive_core.o` of it (see `Makefile.wii`), and this file. The front end
 is `gx/pico32x.c`.

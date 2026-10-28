@@ -2,7 +2,7 @@
  *  Genesis Plus GX ULTIMATE
  *
  *  Sega 32X games, emulated by PicoDrive (picodrive/, its libretro core,
- *  linked as pico32x.o, see picodrive/Makefile.gx). Genesis Plus GX keeps
+ *  linked as picodrive_core.o, see picodrive/Makefile.gx). Genesis Plus GX keeps
  *  the menus, the controllers, the video output (bezels, filters, auto crop)
  *  and the sound output; PicoDrive runs the game, with its SH-2 recompiler.
  *

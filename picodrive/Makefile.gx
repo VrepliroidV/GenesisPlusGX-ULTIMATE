@@ -3,9 +3,9 @@
 # only global symbols are the libretro API and the 32X BIOS pointers: the
 # rest (zlib, Tremor, the CPU cores...) cannot clash with Genesis Plus GX.
 #
-#   make -f Makefile.gx OUT=<path>/pico32x.o      (from Makefile.wii)
+#   make -f Makefile.gx OUT=<path>/picodrive_core.o   (from Makefile.wii)
 
-OUT     ?= pico32x.o
+OUT     ?= picodrive_core.o
 PREFIX  := $(DEVKITPPC)/bin/powerpc-eabi-
 CORE    := picodrive_libretro_wii.a
 KEEP    := pico32x_keep.txt
@@ -22,7 +22,7 @@ core:
 		platform=wii STATIC_LINKING=0 STATIC_LINKING_LINK=1 use_libchdr=0 chkCCflag=
 
 $(OUT): core $(KEEP)
-	@$(PREFIX)ld -r $(addprefix -u ,$(shell cat $(KEEP))) -o pico32x_all.o $(CORE)
-	@$(PREFIX)objcopy --keep-global-symbols=$(KEEP) pico32x_all.o $(OUT)
-	@echo "pico32x.o: $$($(PREFIX)nm -g --defined-only $(OUT) | wc -l) global symbols, needs:" \
+	@$(PREFIX)ld -r $(addprefix -u ,$(shell cat $(KEEP))) -o picodrive_all.o $(CORE)
+	@$(PREFIX)objcopy --keep-global-symbols=$(KEEP) picodrive_all.o $(OUT)
+	@echo "picodrive_core.o: $$($(PREFIX)nm -g --defined-only $(OUT) | wc -l) global symbols, needs:" \
 		$$($(PREFIX)nm -u $(OUT) | awk '{print $$2}' | tr '\n' ' ')

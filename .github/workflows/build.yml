@@ -14,6 +14,8 @@ jobs:
     name: Build 32X Test
     runs-on: ubuntu-latest
     container: devkitpro/devkitppc:20251231
+    permissions:
+      contents: write
 
     steps:
     - uses: actions/checkout@v4
@@ -76,3 +78,18 @@ jobs:
       with:
         name: 32xTest-Wii
         path: dist/
+
+    # The same files on the 32x-test-build branch, for getting them with git
+    - name: Publish on the 32x-test-build branch
+      if: github.event_name == 'push'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        cd dist
+        git init -q -b 32x-test-build
+        git config user.name "github-actions[bot]"
+        git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+        git add -A
+        git commit -q -m "32X Test build of ${GITHUB_SHA::7}"
+        git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:32x-test-build

@@ -372,11 +372,11 @@ static void present(const u16 *src, unsigned w, unsigned h, size_t pitch)
 	GX_Position2f32(x1, y1); GX_TexCoord2f32(s1, t1);
 	GX_Position2f32(x0, y1); GX_TexCoord2f32(0, t1);
 	GX_End();
-	GX_DrawDone();
 
+	/* draw, copy to the other XFB and wait for both before showing it */
 	game_fb ^= 1;
 	GX_CopyDisp(game_xfb[game_fb], GX_TRUE);
-	GX_Flush();
+	GX_DrawDone();
 	VIDEO_SetNextFramebuffer(game_xfb[game_fb]);
 	VIDEO_Flush();
 	presented_at = retraces;

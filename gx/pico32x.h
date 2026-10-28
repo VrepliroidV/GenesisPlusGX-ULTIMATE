@@ -26,7 +26,10 @@ extern int  pico32x_is_32x_file(const char *filename); /* .32x */
 extern int  pico32x_load(const char *filename);        /* 1: loaded */
 extern void pico32x_unload(void);
 extern void pico32x_start(void);                       /* after the game was loaded (reloadrom) */
-extern void pico32x_frame(void);                       /* input, one frame, picture into bitmap */
+extern int  pico32x_frame(void);                       /* input, one frame, picture into bitmap
+                                                          unless it is skipped: 1 if drawn */
+extern void pico32x_frame_end(void);                   /* after the frame's sound and picture
+                                                          were handed over, before waiting */
 extern int  pico32x_audio(int16 *out);                 /* the frame's samples, for gx_audio_Update */
 extern void pico32x_reset(void);
 
@@ -44,6 +47,9 @@ extern const char *pico32x_last_error(void); /* the core's last error message */
 #define PICO32X_RENDERER_ACCURATE 1
 #define PICO32X_RENDERER_FAST     2
 #define PICO32X_SH2_KHZ           18409  /* PicoDrive's SH-2 speed (100%): 2.4x the 68k clock */
+#define PICO32X_FRAMESKIP_OFF     0
+#define PICO32X_FRAMESKIP_AUTO    1      /* when the frame would be late */
+#define PICO32X_FRAMESKIP_MAX     5      /* 2 to 5: 1 to 4 frames skipped after each one drawn */
 extern void pico32x_config_default(void);
 extern void pico32x_config_check(void);      /* values out of range back to the defaults */
 extern void pico32x_options_changed(void);   /* PicoDrive takes the settings again */

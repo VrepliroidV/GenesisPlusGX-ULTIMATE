@@ -161,18 +161,32 @@ static void run_emulation(void)
       /* Sega 32X: PicoDrive (gx/pico32x.c) */
       while (!ConfigRequested)
       {
-        /* render frame (picture into bitmap, samples kept for gx_audio_Update) */
-        pico32x_frame();
+        /* render frame (picture into bitmap unless the frame is skipped,
+           samples kept for gx_audio_Update) */
+        int drawn = pico32x_frame();
 
-        /* audio/video sync */
-        sync = VIDEO_WAIT | VIDEO_UPDATE | AUDIO_WAIT | AUDIO_UPDATE;
+        /* audio/video sync (a skipped frame keeps the last picture and
+           only waits for the sound) */
+        sync = drawn ? (VIDEO_WAIT | VIDEO_UPDATE | AUDIO_WAIT | AUDIO_UPDATE) : (AUDIO_WAIT | AUDIO_UPDATE);
+        sync &= gx_audio_Update(sync);
+        if (drawn)
+        {
+          sync &= gx_video_Update(sync);
+        }
+
+        /* the frame's work is done (the frame skip measures it) */
+        pico32x_frame_end();
+
         while (sync)
         {
           /* update audio */
           sync &= gx_audio_Update(sync);
 
           /* update video */
-          sync &= gx_video_Update(sync);
+          if (drawn)
+          {
+            sync &= gx_video_Update(sync);
+          }
         }
       }
     }

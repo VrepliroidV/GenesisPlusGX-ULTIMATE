@@ -105,7 +105,8 @@ static const t_game_field fields[] =
   FIELD(p32x_ym2612, T_U8),
   FIELD(p32x_fm_filter, T_U8),
   FIELD(p32x_lowpass, T_U8),
-  FIELD(p32x_auto_oc, T_U8)
+  FIELD(p32x_auto_oc, T_U8),
+  FIELD(p32x_frameskip, T_U8)
 };
 
 #define FIELD_COUNT (sizeof(fields) / sizeof(fields[0]))

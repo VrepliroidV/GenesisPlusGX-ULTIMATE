@@ -17,6 +17,7 @@
 #include "../picodrive/platform/libretro/libretro-common/include/libretro.h"
 #include "pico32x.h"
 #include "file_load.h"
+#include "gx_audio.h"
 #include <ogc/lwp_watchdog.h>
 
 /* PicoDrive: the 32X BIOS images, NULL for its built-in replacement */
@@ -107,7 +108,8 @@ static const char *option_value(const char *key)
   if (!strcmp(key, "picodrive_sound_rate"))
     return sound_rate_text;
   if (!strcmp(key, "picodrive_frameskip"))
-    return "disabled";
+    /* the frames to skip are chosen here (see Frame skip) */
+    return config.p32x_frameskip ? "auto" : "disabled";
   if (!strcmp(key, "picodrive_region"))
   {
     switch (config.region_detect)
@@ -137,6 +139,7 @@ void pico32x_config_default(void)
   config.p32x_fm_filter = 0;
   config.p32x_lowpass = 0;
   config.p32x_auto_oc = 0;
+  config.p32x_frameskip = PICO32X_FRAMESKIP_OFF;
 }
 
 void pico32x_config_check(void)
@@ -149,6 +152,10 @@ void pico32x_config_check(void)
       (config.p32x_fm_filter > 1) || (config.p32x_lowpass > 95) || (config.p32x_auto_oc > 1))
   {
     pico32x_config_default();
+  }
+  if (config.p32x_frameskip > PICO32X_FRAMESKIP_MAX)
+  {
+    config.p32x_frameskip = PICO32X_FRAMESKIP_OFF;
   }
 }
 
@@ -357,6 +364,78 @@ static void aoc_end_frame(int host_us)
   }
 }
 
+/****************************************************************************
+ * Frame skip (config.p32x_frameskip)
+ *
+ * A skipped frame is emulated without drawing its picture: PicoDrive skips
+ * the Mega Drive and 32X layers, the game runs and sounds the same. The last
+ * picture stays on the screen, and the frame does not wait for the VSYNC,
+ * only for the sound. PicoDrive skips a frame when its frontend says the
+ * sound is about to run out (libretro's audio buffer status), which is
+ * decided here:
+ * - AUTO: when the next frame, drawn, would not be ready before the sound
+ *   already handed to the audio DMA runs out (by the time the frames drawn
+ *   took), so the game keeps its speed and its sound does not stutter;
+ * - 1 to 4: that many frames skipped after each frame drawn.
+ * AUTO skips at most FS_MAX_SKIP frames in a row, and the first frame after
+ * the menu is always drawn (the audio DMA starts again with it).
+ ****************************************************************************/
+#define FS_MAX_SKIP  4      /* frames skipped in a row at most (AUTO) */
+#define FS_MARGIN    1000   /* microseconds: the sound and the VSYNC are not exactly in step */
+
+static retro_audio_buffer_status_callback_t audio_status_cb = NULL;
+static struct
+{
+  int skipped;   /* frames skipped in a row */
+  int draw_us;   /* time a frame drawn takes (emulation, sound and picture) */
+  int drawn;     /* the frame running was drawn (core_video got a picture) */
+  int draw_host; /* emulation time of the last frame drawn */
+  int resized;   /* the picture changed size: its frame waits for the VSYNC */
+  u64 start;     /* when the frame started */
+} fs;
+
+static int fs_skip(void)
+{
+  int queued;
+
+  if (!config.p32x_frameskip || !audio_status_cb)
+  {
+    fs.skipped = 0;
+    return 0;
+  }
+
+  queued = gx_audio_Queued();
+  if (queued >= 0)
+  {
+    if (config.p32x_frameskip == PICO32X_FRAMESKIP_AUTO)
+    {
+      if ((fs.skipped < FS_MAX_SKIP) && (fs.draw_us + FS_MARGIN > queued))
+      {
+        fs.skipped++;
+        return 1;
+      }
+    }
+    else if (fs.skipped < config.p32x_frameskip - 1)
+    {
+      fs.skipped++;
+      return 1;
+    }
+  }
+
+  fs.skipped = 0;
+  return 0;
+}
+
+void pico32x_frame_end(void)
+{
+  if (fs.drawn && !fs.resized)
+  {
+    /* up at once, down slowly: one slow frame is enough to skip the next */
+    int us = diff_usec(fs.start, gettime());
+    fs.draw_us = (us >= fs.draw_us) ? us : fs.draw_us - (fs.draw_us - us) / 4;
+  }
+}
+
 static void core_log(enum retro_log_level level, const char *fmt, ...)
 {
   if (level == RETRO_LOG_ERROR)
@@ -409,6 +488,10 @@ static bool core_environment(unsigned cmd, void *data)
     case RETRO_ENVIRONMENT_SET_GEOMETRY:
       av.geometry = *(const struct retro_game_geometry *) data;
       return true;
+    case RETRO_ENVIRONMENT_SET_AUDIO_BUFFER_STATUS_CALLBACK:
+      /* the frame skip (picodrive_frameskip "auto"): told before each frame */
+      audio_status_cb = data ? ((const struct retro_audio_buffer_status_callback *) data)->callback : NULL;
+      return true;
     case RETRO_ENVIRONMENT_SET_VARIABLES:
     case RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL:
     case RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS:
@@ -431,7 +514,8 @@ static void core_video(const void *data, unsigned w, unsigned h, size_t pitch)
   unsigned line, x, tiles;
 
   if (!data)
-    return; /* the same picture again */
+    return; /* the same picture again (a skipped frame) */
+  fs.drawn = 1;
 
   if (w > 320) w = 320;
   if (h > 240) h = 240;
@@ -662,19 +746,37 @@ void pico32x_start(void)
     retro_set_controller_port_device(i, (dev == DEVICE_PAD6B) ? RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_JOYPAD, 1)
                                         : (dev == NO_DEVICE) ? RETRO_DEVICE_NONE : RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_JOYPAD, 0));
   }
-  /* the automatic SH-2 overclock starts again from 100% */
+  /* the automatic SH-2 overclock starts again from 100%, the frame skip
+     measures the frames again */
   pico32x_autooc_reset();
+  memset(&fs, 0, sizeof(fs));
 }
 
-void pico32x_frame(void)
+int pico32x_frame(void)
 {
+  int skip, host;
+
   osd_input_update();
   pad_bits[0] = md_to_retro(input.pad[0]);
   pad_bits[1] = md_to_retro(input.pad[4]);
 
-  u64 start = gettime();
+  /* skip the picture of this frame? (PicoDrive asks it in retro_run) */
+  skip = fs_skip();
+  if (audio_status_cb)
+    audio_status_cb(true, skip ? 0 : 100, skip);
+
+  fs.drawn = 0;
+  fs.start = gettime();
   retro_run();
-  aoc_end_frame(diff_usec(start, gettime()));
+  host = diff_usec(fs.start, gettime());
+  fs.resized = bitmap.viewport.changed & 1;
+
+  /* the automatic overclock goes by the frames drawn: it never takes more
+     than the Wii can do drawing every frame */
+  if (fs.drawn || !fs.draw_host)
+    fs.draw_host = host;
+  aoc_end_frame((host > fs.draw_host) ? host : fs.draw_host);
+  return fs.drawn;
 }
 
 /* The samples of one frame for the audio DMA. Like audio_update(), it

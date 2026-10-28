@@ -47,6 +47,7 @@ extern void gx_audio_Shutdown(void);
 extern void gx_audio_Start(void);
 extern void gx_audio_Stop(void);
 extern int gx_audio_Update(int status);
+extern int gx_audio_Queued(void); /* microseconds of sound left for the audio DMA, -1 before it starts */
 
 /* Menu music (config.menu_music): the OGG files of /genplusultimate/music */
 #define MAX_MENU_MUSIC 512

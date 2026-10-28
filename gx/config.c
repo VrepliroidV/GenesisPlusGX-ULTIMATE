@@ -59,6 +59,7 @@
 #define CONFIG_SIZE_BEFORE_MUSIC ((offsetof(t_config, menu_music) + 3) & ~3)
 #define CONFIG_SIZE_BEFORE_32X ((offsetof(t_config, lastdir_32x) + 3) & ~3)
 #define CONFIG_SIZE_BEFORE_32X_SETTINGS ((offsetof(t_config, p32x_msh2) + 3) & ~3)
+#define CONFIG_SIZE_BEFORE_32X_FRAMESKIP ((offsetof(t_config, p32x_frameskip) + 3) & ~3)
 
 t_config config;
 
@@ -75,7 +76,7 @@ static int config_load(void)
     long size = ftell(fp);
     if ((size != sizeof(config)) && (size != CONFIG_SIZE_BEFORE_AUTOCROP) && (size != CONFIG_SIZE_BEFORE_AUTOCROP_SCALE) &&
         (size != CONFIG_SIZE_BEFORE_BEZEL) && (size != CONFIG_SIZE_BEFORE_MUSIC) && (size != CONFIG_SIZE_BEFORE_32X) &&
-        (size != CONFIG_SIZE_BEFORE_32X_SETTINGS))
+        (size != CONFIG_SIZE_BEFORE_32X_SETTINGS) && (size != CONFIG_SIZE_BEFORE_32X_FRAMESKIP))
     {
       fclose(fp);
       return 0;

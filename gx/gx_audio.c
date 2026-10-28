@@ -436,6 +436,35 @@ int gx_audio_Update(int status)
   return status;  
 }
 
+/***
+      gx_audio_Queued
+
+     How long the sound already handed to the audio DMA lasts, in microseconds:
+     the rest of the block playing and the block waiting to start after it.
+     The next frame must hand its samples over before then, or the DMA plays
+     the last block again. -1 when nothing was handed over since the restart.
+ ***/
+int gx_audio_Queued(void)
+{
+  u32 bytes;
+
+  if (!bufferSize)
+  {
+    return -1;
+  }
+
+  /* 32-byte blocks left of the DMA playing */
+  bytes = AUDIO_GetDMABytesLeft();
+  if (audioWait)
+  {
+    /* the last block handed over has not started yet */
+    bytes += bufferSize;
+  }
+
+  /* 4 bytes a sample, 48000 samples a second */
+  return (int)(bytes * 125 / 24);
+}
+
 /*** 
       gx_audio_Start
 

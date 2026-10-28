@@ -158,6 +158,7 @@ typedef struct
   uint8 p32x_fm_filter;        /* 1: FM filtering */
   uint8 p32x_lowpass;          /* low-pass filter in percent, 0 off */
   uint8 p32x_auto_oc;          /* 1: SH-2 speeds automatic, up to p32x_msh2/ssh2 */
+  uint8 p32x_frameskip;        /* PICO32X_FRAMESKIP_* (off, auto, or 1 to 4 frames) */
 } t_config;
 
 /* The last directory of a file type: the 32X one was added at the end of

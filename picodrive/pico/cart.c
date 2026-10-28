@@ -910,10 +910,14 @@ void PicoCartUnload(void)
     PicoCartUnloadHook = NULL;
   }
 
+  // the idle loop patches can be in the 32X memory (the 68k ROM bank):
+  // undone before it is freed, not after (Genesis Plus GX ULTIMATE)
+  if (Pico.rom != NULL)
+    SekFinishIdleDet();
+
   PicoUnload32x();
 
   if (Pico.rom != NULL) {
-    SekFinishIdleDet();
     plat_munmap(Pico.rom, rom_alloc_size);
     rom_alloc_size = 0;
     Pico.rom = NULL;

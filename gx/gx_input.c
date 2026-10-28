@@ -1928,11 +1928,19 @@ void gx_input_UpdateMenu(void)
   /* Check all PAD ports */
   for (i=0; i<4; i++)
   {
+#ifdef HW_RVL
+    /* PAD pressed keys (USB 6-button pads: C confirms, B goes back) */
+    pp = USBPAD_MenuButtonsDown(i);
+
+    /* PAD held keys (direction/selection only) */
+    hp = USBPAD_MenuButtonsHeld(i) & PAD_BUTTONS_HELD;
+#else
     /* PAD pressed keys */
     pp = PAD_ButtonsDown(i);
 
     /* PAD held keys (direction/selection only) */
     hp = PAD_ButtonsHeld(i) & PAD_BUTTONS_HELD;
+#endif
 
     /* PAD analog sticks (handled as held direction keys) */
     x = PAD_StickX(i);

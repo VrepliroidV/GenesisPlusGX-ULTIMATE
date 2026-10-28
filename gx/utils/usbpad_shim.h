@@ -14,6 +14,11 @@
  *   Xbox A -> A, B -> B, LT/RT/LB -> C, X -> X, Y -> Y, RB -> Z,
  *   Back -> Mode, Start -> Start, D-pad or left stick -> D-pad.
  *   Back + Right opens the menu.
+ *
+ * In the menus, the 6-button pads (whose triggers are buttons, see
+ * XInput_TriggersAsButtons, like the Retroflag Classic Controller-M) confirm
+ * with C and go back with B, as on a Mega Drive; other pads are read as in
+ * the game.
  */
 
 #ifndef USBPAD_SHIM_H
@@ -31,6 +36,14 @@ u32 USBPAD_ScanPads(void);
 u16 USBPAD_ButtonsHeld(int chan);
 u16 USBPAD_ButtonsDown(int chan);
 u16 USBPAD_ButtonsUp(int chan);
+
+/* The same for the menus: GameCube controller buttons, and the USB pad's
+   buttons with C as A (confirm) and B as B (back) on 6-button pads. */
+u16 USBPAD_MenuButtonsHeld(int chan);
+u16 USBPAD_MenuButtonsDown(int chan);
+
+/* 1 while a 6-button pad is connected: the menus show its C and B too. */
+int USBPAD_MegaDriveMenu(void);
 
 #ifdef __cplusplus
 }

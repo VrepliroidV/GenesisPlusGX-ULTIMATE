@@ -331,6 +331,18 @@ int FONT_write(char *string, int size, int x, int y, int max_width, GXColor colo
   return 0;
 }
 
+/* width of the first line of a string, as FONT_write draws it */
+int FONT_getWidth(char *string, int size)
+{
+  int w = 0;
+  while (*string && (*string != '\n'))
+  {
+    w += (font_size[(u8)*string] * size * vmode->fbWidth) / (fontHeader->cell_height * vmode->viWidth);
+    string++;
+  }
+  return w;
+}
+
 int FONT_writeCenter(char *string, int size, int x1, int x2, int y, GXColor color)
 {
   int x;

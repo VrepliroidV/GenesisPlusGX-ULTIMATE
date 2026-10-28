@@ -42,6 +42,80 @@
 #include "font.h"
 
 #ifdef HW_RVL
+#include "usbpad_shim.h"
+#include "Key_B_md_png.h"
+#include "Key_C_md_png.h"
+
+/* 6-button USB pads (Retroflag Classic Controller-M): in the menus their C
+   confirms and their B goes back (usbpad_shim.c). While such a pad is
+   connected, those buttons are shown next to the Wii ones. */
+static gx_texture *md_key_b = NULL;
+static gx_texture *md_key_c = NULL;
+
+static int md_keys(void)
+{
+  if (!USBPAD_MegaDriveMenu())
+    return 0;
+  if (!md_key_b)
+    md_key_b = gxTextureOpenPNG(Key_B_md_png,0);
+  if (!md_key_c)
+    md_key_c = gxTextureOpenPNG(Key_C_md_png,0);
+  return md_key_b && md_key_c;
+}
+#endif
+
+/* Key helpers at the bottom of a menu: the button to go back (left) and the
+   one to confirm (right), each with its comment */
+static void draw_helpers(gui_menu *menu)
+{
+  gui_item *item;
+  int x;
+#ifdef HW_RVL
+  int md = md_keys();
+#endif
+
+  /* left comment */
+  item = menu->helpers[0];
+  if (item)
+  {
+    if (item->data && strlen(item->comment))
+    {
+      gxDrawTexture(item->texture,item->x,item->y,item->w,item->h,255);
+      x = item->x+item->w+6;
+#ifdef HW_RVL
+      /* Mega Drive B after the Wii B */
+      if (md && (item->data == Key_B_png))
+      {
+        gxDrawTexture(md_key_b,x-2,item->y,item->h,item->h,255);
+        x += item->h + 4;
+      }
+#endif
+      FONT_write(item->comment,16,x,item->y+(item->h-16)/2 + 16,640,(GXColor)WHITE);
+    }
+  }
+
+  /* right comment */
+  item = menu->helpers[1];
+  if (item)
+  {
+    if (item->data && strlen(item->comment))
+    {
+      gxDrawTexture(item->texture,item->x,item->y,item->w,item->h,255);
+      x = item->x-6;
+#ifdef HW_RVL
+      /* Mega Drive C before the Wii A */
+      if (md && (item->data == Key_A_png))
+      {
+        gxDrawTexture(md_key_c,x-item->h+2,item->y,item->h,item->h,255);
+        x -= item->h + 4;
+      }
+#endif
+      FONT_alignRight(item->comment,16,x,item->y+(item->h-16)/2+16,(GXColor)WHITE);
+    }
+  }
+}
+
+#ifdef HW_RVL
 gx_texture *w_pointer;
 #endif
 
@@ -411,27 +485,8 @@ void GUI_DrawMenu(gui_menu *menu)
     }
   }
 
-  /* left comment */
-  item = menu->helpers[0];
-  if (item)
-  {
-    if (item->data && strlen(item->comment))
-    {
-      gxDrawTexture(item->texture,item->x,item->y,item->w,item->h,255);
-      FONT_write(item->comment,16,item->x+item->w+6,item->y+(item->h-16)/2 + 16,640,(GXColor)WHITE);
-    }
-  }
-
-  /* right comment */
-  item = menu->helpers[1];
-  if (item)
-  {
-    if (item->data && strlen(item->comment))
-    {
-      gxDrawTexture(item->texture,item->x,item->y,item->w,item->h,255);
-      FONT_alignRight(item->comment,16,item->x-6,item->y+(item->h-16)/2+16,(GXColor)WHITE);
-    }
-  }
+  /* left and right comments */
+  draw_helpers(menu);
 
   /* mini music player */
   player_draw();
@@ -658,27 +713,8 @@ void GUI_DrawMenuFX(gui_menu *menu, u8 speed, u8 out)
 
     if (!(menu->bg_images[3].state & IMAGE_SLIDE_BOTTOM) && !(menu->bg_images[4].state & IMAGE_SLIDE_BOTTOM))
     {
-      /* left comment */
-      item = menu->helpers[0];
-      if (item)
-      {
-        if (item->data && strlen(item->comment))
-        {
-          gxDrawTexture(item->texture,item->x,item->y,item->w,item->h,255);
-          FONT_write(item->comment,16,item->x+item->w+6,item->y+(item->h-16)/2 + 16,640,(GXColor)WHITE);
-        }
-      }
-
-      /* right comment */
-      item = menu->helpers[1];
-      if (item)
-      {
-        if (item->data && strlen(item->comment))
-        {
-          gxDrawTexture(item->texture,item->x,item->y,item->w,item->h,255);
-          FONT_alignRight(item->comment,16,item->x-6,item->y+(item->h-16)/2+16,(GXColor)WHITE);
-        }
-      }
+      /* left and right comments */
+      draw_helpers(menu);
     }
 
     /* mini music player */
@@ -1910,6 +1946,44 @@ static void *MsgBox_Thread(gui_message *message_box)
       gxDrawTextureRotate(message_box->throbber,166+(message_box->window->width-message_box->throbber->width)/2,160+message_box->window->height-message_box->throbber->height-20,message_box->throbber->width,message_box->throbber->height,(message_box->progress * 360.0) / 100.0, 255);
 
     /* draw exit message */
+#ifdef HW_RVL
+    if (message_box->buttonA && md_keys())
+    {
+      /* with the Mega Drive buttons of a 6-button USB pad: C with A, B with B */
+      gx_texture *a = message_box->buttonA, *b = message_box->buttonB;
+      int left = 166, width = message_box->window->width;
+      if (b)
+      {
+        int w1 = a->width + 4 + md_key_c->width + 6 + FONT_getWidth("Confirm",18);
+        int w2 = b->width + 4 + md_key_b->width + 6 + FONT_getWidth("Cancel",18);
+        int x = left + (width - (w1 + 24 + w2)) / 2;
+        gxDrawTexture(a, x, 248+8+(18-a->height)/2, a->width, a->height, 255);
+        x += a->width + 4;
+        gxDrawTexture(md_key_c, x, 248+8+(18-md_key_c->height)/2, md_key_c->width, md_key_c->height, 255);
+        x += md_key_c->width + 6;
+        FONT_write("Confirm",18,x,248+18+8,640,(GXColor)WHITE);
+        x += FONT_getWidth("Confirm",18) + 24;
+        gxDrawTexture(b, x, 248+8+(18-b->height)/2, b->width, b->height, 255);
+        x += b->width + 4;
+        gxDrawTexture(md_key_b, x, 248+8+(18-md_key_b->height)/2, md_key_b->width, md_key_b->height, 255);
+        x += md_key_b->width + 6;
+        FONT_write("Cancel",18,x,248+18+8,640,(GXColor)WHITE);
+      }
+      else
+      {
+        int w = FONT_getWidth("Press ",18) + a->width + 4 + md_key_c->width + FONT_getWidth(" to continue.",18);
+        int x = left + (width - w) / 2;
+        FONT_write("Press ",18,x,248+18+4,640,(GXColor)WHITE);
+        x += FONT_getWidth("Press ",18);
+        gxDrawTexture(a, x, 248+4+(18-a->height)/2, a->width, a->height, 255);
+        x += a->width + 4;
+        gxDrawTexture(md_key_c, x, 248+4+(18-md_key_c->height)/2, md_key_c->width, md_key_c->height, 255);
+        x += md_key_c->width;
+        FONT_write(" to continue.",18,x,248+18+4,640,(GXColor)WHITE);
+      }
+    }
+    else
+#endif
     if (message_box->buttonA)
     {
       if (message_box->buttonB)

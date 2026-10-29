@@ -1838,6 +1838,80 @@ void retro_unload_game(void)
 #endif
 }
 
+#ifdef GPGX_ULTIMATE
+/* Genesis Plus GX ULTIMATE: the codes of its cheat menu on a 32X game, and
+   the speed set by its automatic 68k overclock.
+
+   gx_cheat_rom(): a 16-bit ROM patch, also in the copy of the first 64 KB
+   that the 68k reads in 32X mode (Pico32xMem->m68k_rom_bank, past the BIOS
+   part); returns the word it replaced, -1 out of the ROM. After ROM patches,
+   gx_cheat_code_changed() drops the SH-2 recompiled code (the SH-2s read the
+   ROM too). gx_cheat_ram(): a byte or word write (each frame) to the 68k RAM
+   (0xFFxxxx) or the 32X SDRAM (0x06xxxxxx); recompiled SH-2 code there is
+   dropped when the value changes. */
+int gx_cheat_rom(unsigned int addr, unsigned int data)
+{
+   u16 old;
+
+   addr &= ~1;
+   if (Pico.rom == NULL || addr + 2 > Pico.romsize)
+      return -1;
+   old = *(u16 *)(Pico.rom + addr);
+   *(u16 *)(Pico.rom + addr) = data;
+   if ((PicoIn.AHW & PAHW_32X) && Pico32xMem != NULL &&
+       addr >= sizeof(Pico32xMem->m68k_rom) && addr < sizeof(Pico32xMem->m68k_rom_bank))
+      *(u16 *)(Pico32xMem->m68k_rom_bank + addr) = data;
+   return old;
+}
+
+void gx_cheat_code_changed(void)
+{
+#ifdef DRC_SH2
+   if (PicoIn.AHW & PAHW_32X)
+      sh2_drc_flush_all();
+#endif
+}
+
+void gx_cheat_ram(unsigned int addr, unsigned int data, int word)
+{
+   u8 *mem;
+   u32 off;
+
+   if ((addr & 0xffff0000) == 0x00ff0000) {
+      mem = PicoMem.ram;
+      off = addr & 0xffff;
+   }
+   else if ((addr & 0xfffc0000) == 0x06000000 && (PicoIn.AHW & PAHW_32X) && Pico32xMem != NULL) {
+      mem = Pico32xMem->sdram;
+      off = addr & 0x3ffff;
+   }
+   else
+      return;
+
+   if (word) {
+      off &= ~1;
+      if (*(u16 *)(mem + off) == (u16)data)
+         return;
+      *(u16 *)(mem + off) = data;
+   }
+   else {
+      if (mem[MEM_BE2(off)] == (u8)data)
+         return;
+      mem[MEM_BE2(off)] = data;
+   }
+
+#ifdef DRC_SH2
+   if (Pico32xMem != NULL && mem == Pico32xMem->sdram && (Pico32xMem->drcblk_ram[(off & ~1) >> SH2_DRCBLK_RAM_SHIFT] & 0x7f))
+      sh2_drc_wcheck_ram(0x06000000 | (off & ~1), 2, &msh2);
+#endif
+}
+
+void gx_m68k_set_overclock(int percent)
+{
+   PicoIn.overclockM68k = (percent > 0) ? percent : 0;
+}
+#endif
+
 unsigned retro_get_region(void)
 {
    return Pico.m.pal ? RETRO_REGION_PAL : RETRO_REGION_NTSC;

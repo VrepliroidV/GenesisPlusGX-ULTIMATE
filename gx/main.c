@@ -314,6 +314,9 @@ void reloadrom(void)
     /* Auto-Load State */
     slot_autoload(config.s_default,config.s_device);
 
+    /* Load Cheat file (the codes go to PicoDrive) */
+    CheatLoad();
+
     /* Auto crop layouts learned for this game */
     gx_video_AutoCropLoad();
     return;
@@ -558,6 +561,10 @@ int main (int argc, char *argv[])
     if (dir) closedir(dir);
     else mkdir(pathname,S_IRWXU);
     sprintf (pathname, "%s/cheats/cd",DEFAULT_PATH);
+    dir = opendir(pathname);
+    if (dir) closedir(dir);
+    else mkdir(pathname,S_IRWXU);
+    sprintf (pathname, "%s/cheats/32x",DEFAULT_PATH);
     dir = opendir(pathname);
     if (dir) closedir(dir);
     else mkdir(pathname,S_IRWXU);

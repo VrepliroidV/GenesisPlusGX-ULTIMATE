@@ -474,6 +474,15 @@ unsigned int gx_32x_cycles(void)
 {
   return SekCyclesDone();
 }
+
+/* and for its automatic 68k overclock: the main 68k cycles run (more than
+   the frame with an overclock) and the ones it spent waiting (fame) */
+unsigned int gx_m68k_cycles;
+unsigned int gx_m68k_idle;
+/* the same from the start of the last frame to its vertical interrupt
+   (pico_cmn.c): a game that did not wait before it missed the interrupt */
+unsigned int gx_m68k_vint_cycles;
+unsigned int gx_m68k_vint_idle;
 #endif
 
 static void run_sh2(SH2 *sh2, unsigned int m68k_cycles)

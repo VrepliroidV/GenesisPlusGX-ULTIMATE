@@ -33,6 +33,20 @@
 #define USE_CYCLONE_TIMING
 #define USE_CYCLONE_TIMING_DIV
 #define PICODRIVE_HACK
+
+#ifdef GPGX_ULTIMATE
+/* Genesis Plus GX ULTIMATE, for its automatic 68k overclock of the 32X
+   games: the cycles the main 68k spends waiting (stopped, or on an idle
+   loop found by the idle loop detection) */
+extern M68K_CONTEXT PicoCpuFM68k;
+extern unsigned int gx_m68k_idle;
+
+/* the rest of the run is skipped: the main 68k waits that long */
+#define GX_M68K_WAITS { \
+	if (ctx == &PicoCpuFM68k && ctx->io_cycle_counter > 0) \
+		gx_m68k_idle += ctx->io_cycle_counter; \
+}
+#endif
 // Options //
 
 #ifndef FAMEC_NO_GOTOS
@@ -813,6 +827,10 @@ int fm68k_emulate(M68K_CONTEXT *ctx, int cycles, fm68k_call_reason reason)
 	{
 		if (interrupt_chk__(ctx) <= 0)
 		{
+#ifdef GPGX_ULTIMATE
+			if (ctx == &PicoCpuFM68k)
+				gx_m68k_idle += cycles;
+#endif
 			return cycles;
 		}
 		ctx->execinfo &= ~FM68K_HALTED;

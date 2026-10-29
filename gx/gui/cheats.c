@@ -237,6 +237,22 @@ static char ggvalidchars[] = "ABCDEFGHJKLMNPRSTVWXYZ0123456789";
 
 static char arvalidchars[] = "0123456789ABCDEF";
 
+static int is_hex(char c)
+{
+  return c && strchr(arvalidchars, c);
+}
+
+/* 32X game: the codes go to PicoDrive (pico32x_cheat_*). Besides the codes
+   of the Mega Drive, a code with 2 data digits (AAAAAA:DD) writes a byte in
+   the 32X RAM (address below 0x40000) or in the 68k RAM (FFxxxx), as the
+   "32X RAM" codes of the cheat lists; their "68K RAM" codes (AAAA:DD) are
+   read as FFAAAA:DD. */
+static int is_32x_byte_code(const char *string)
+{
+  return pico32x_active && (strlen(string) >= 9) && (string[6] == ':') &&
+         is_hex(string[7]) && is_hex(string[8]) && !is_hex(string[9]);
+}
+
 static u32 decode_cheat(char *string, int index)
 {
   char *p;
@@ -366,6 +382,36 @@ static u32 decode_cheat(char *string, int index)
     len = 11;
   }
 
+  /* 32X RAM byte code (AAAAAA:DD) */
+  else if (is_32x_byte_code(string))
+  {
+    for (i=0; i<6; i++)
+    {
+      if (!is_hex(*string)) return 0;
+      n = (strchr(arvalidchars, *string++) - arvalidchars) & 0xF;
+      address |= (n << ((5 - i) * 4));
+    }
+    string++;
+    for (i=0; i<2; i++)
+    {
+      n = (strchr(arvalidchars, *string++) - arvalidchars) & 0xF;
+      data |= (n << ((1 - i) * 4));
+    }
+
+    if (address < 0x40000)
+    {
+      /* 32X RAM (SDRAM, 256 KB) */
+      address |= PICO32X_SDRAM;
+    }
+    else if (address < 0xFF0000)
+    {
+      return 0;
+    }
+
+    /* code length */
+    len = 9;
+  }
+
   /* Action Replay code */
   else if (string[6] == ':')
   {
@@ -452,6 +498,39 @@ static void apply_cheats(void)
   maxROMcheats = maxRAMcheats = 0;
 
   int i;
+
+  /* 32X game: ROM patches by PicoDrive, RAM patches each frame */
+  if (pico32x_active)
+  {
+    int rom = 0;
+    for (i = 0; i < maxcheats; i++)
+    {
+      if (cheatlist[i].enable)
+      {
+        if ((cheatlist[i].address >= 0xFF0000) || ((cheatlist[i].address & 0xFFFC0000) == PICO32X_SDRAM))
+        {
+          /* add RAM patch */
+          cheatIndexes[maxRAMcheats++] = i;
+        }
+        else
+        {
+          /* patch ROM data */
+          int old = pico32x_cheat_rom(cheatlist[i].address, cheatlist[i].data);
+          if (old >= 0)
+          {
+            cheatlist[i].old = old;
+            rom = 1;
+          }
+        }
+      }
+    }
+    if (rom)
+    {
+      pico32x_cheat_rom_done();
+    }
+    return;
+  }
+
   for (i = 0; i < maxcheats; i++)
   {
     if (cheatlist[i].enable)
@@ -522,6 +601,26 @@ static void apply_cheats(void)
 static void clear_cheats(void)
 {
   int i;
+
+  /* 32X game: original ROM data back (in reversed order, see below) */
+  if (pico32x_active)
+  {
+    int rom = 0;
+    for (i = maxcheats; i > 0; i--)
+    {
+      if (cheatlist[i-1].enable && (cheatlist[i-1].address < 0xFF0000) &&
+          ((cheatlist[i-1].address & 0xFFFC0000) != PICO32X_SDRAM) &&
+          (pico32x_cheat_rom(cheatlist[i-1].address, cheatlist[i-1].old) >= 0))
+      {
+        rom = 1;
+      }
+    }
+    if (rom)
+    {
+      pico32x_cheat_rom_done();
+    }
+    return;
+  }
 
   /* no ROM patches with Mega-CD games */
   if ((system_hw == SYSTEM_MCD) && !scd.cartridge.boot)
@@ -1034,6 +1133,14 @@ void CheatMenu(void)
 
               /* set cursor to end of code */
               digit_cnt = max + 1;
+
+              /* 32X RAM byte code (AAAAAA:DD): shorter */
+              if (pico32x_active && (max == 10) && (strlen(str) == 9))
+              {
+                digit_cnt = 9;
+                str[9] = '*';
+                str[10] = 0;
+              }
             }
 
             /* init specific characters */
@@ -1188,9 +1295,12 @@ void CheatMenu(void)
             update = -1;
           }
           
-          /* finalize cheat code edition */
-          else if (max && (digit_cnt > max))
+          /* finalize cheat code edition (a 32X RAM byte code, AAAAAA:DD, is shorter) */
+          else if (max && ((digit_cnt > max) || (pico32x_active && (max == 10) && (digit_cnt == 9))))
           {
+            /* end of the code (no edit mark) */
+            str[digit_cnt] = 0;
+
             /* check if cheat code is valid */
             if (decode_cheat(cheatlist[offset + selection].code, offset + selection))
             {
@@ -1213,6 +1323,13 @@ void CheatMenu(void)
             else
             {
               GUI_WaitPrompt("Error", "Invalid Cheat Code");
+
+              /* edit mark back */
+              if (digit_cnt <= max)
+              {
+                str[digit_cnt] = '*';
+                str[digit_cnt+1] = 0;
+              }
             }
           }
           break;
@@ -1451,6 +1568,14 @@ void CheatLoad(void)
       else
         temp[strlen(temp) - 1] = 0;
 
+      /* 32X game: the "68K RAM" codes of the cheat lists (AAAA:DD) as FFAAAA:DD */
+      if (pico32x_active && is_hex(temp[0]) && is_hex(temp[1]) && is_hex(temp[2]) && is_hex(temp[3]) &&
+          (temp[4] == ':') && is_hex(temp[5]) && is_hex(temp[6]) && !is_hex(temp[7]))
+      {
+        memmove(temp + 2, temp, strlen(temp) + 1);
+        temp[0] = temp[1] = 'F';
+      }
+
       /* check cheat validty */
       len = decode_cheat(temp, maxcheats);
 
@@ -1530,6 +1655,17 @@ void RAMCheatUpdate(void)
   uint8 *base;
   uint32 mask;
   int index, cnt = maxRAMcheats;
+
+  /* 32X game: PicoDrive's 68k RAM and 32X RAM */
+  if (pico32x_active)
+  {
+    while (cnt)
+    {
+      index = cheatIndexes[--cnt];
+      pico32x_cheat_ram(cheatlist[index].address, cheatlist[index].data);
+    }
+    return;
+  }
   
   while (cnt)
   {

@@ -19399,6 +19399,9 @@ RET(0)
 		ASP = res;
 	}
 	ctx->execinfo |= FM68K_HALTED;
+#ifdef GPGX_ULTIMATE
+	GX_M68K_WAITS
+#endif
 RET0()
 }
 
@@ -40247,6 +40250,9 @@ RET(14)
 	extern int idle_hit_counter; \
 	idle_hit_counter++; \
 }
+#elif defined(GPGX_ULTIMATE)
+/* Genesis Plus GX ULTIMATE: the main 68k waits (famec.c) */
+#define UPDATE_IDLE_COUNT GX_M68K_WAITS
 #else
 #define UPDATE_IDLE_COUNT
 #endif

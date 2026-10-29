@@ -16,6 +16,15 @@
   SekRunM68k(m68k_cycles)
 #endif
 
+#ifdef GPGX_ULTIMATE
+// Genesis Plus GX ULTIMATE: the main 68k cycles run and waited (32x.c), and
+// the ones from the start of the frame to the vertical interrupt: a game
+// that did not wait before it is late
+extern unsigned int gx_m68k_cycles, gx_m68k_idle;
+extern unsigned int gx_m68k_vint_cycles, gx_m68k_vint_idle;
+static unsigned int gx_frame_cycles, gx_frame_idle;
+#endif
+
 // sync m68k to Pico.t.m68c_aim
 static void SekExecM68k(int cyc_do)
 {
@@ -28,7 +37,15 @@ static void SekExecM68k(int cyc_do)
 #elif defined(EMU_M68K)
   Pico.t.m68c_cnt += m68k_execute(cyc_do) - cyc_do;
 #elif defined(EMU_F68K)
+#ifdef GPGX_ULTIMATE
+  {
+    int done = fm68k_emulate(&PicoCpuFM68k, cyc_do, 0);
+    gx_m68k_cycles += done;
+    Pico.t.m68c_cnt += done - cyc_do;
+  }
+#else
   Pico.t.m68c_cnt += fm68k_emulate(&PicoCpuFM68k, cyc_do, 0) - cyc_do;
+#endif
 #endif
   SekCyclesLeft = 0;
 }
@@ -139,6 +156,10 @@ static int PicoFrameHints(void)
   skip = PicoIn.skipFrame;
 
   Pico.t.m68c_frame_start = Pico.t.m68c_aim;
+#ifdef GPGX_ULTIMATE
+  gx_frame_cycles = gx_m68k_cycles;
+  gx_frame_idle = gx_m68k_idle;
+#endif
   PsndStartFrame();
   PicoPortUpdate();
 
@@ -240,6 +261,10 @@ static int PicoFrameHints(void)
   // slot 0x00
   pv->status |= SR_F;
   pv->pending_ints |= 0x20;
+#ifdef GPGX_ULTIMATE
+  gx_m68k_vint_cycles = gx_m68k_cycles - gx_frame_cycles;
+  gx_m68k_vint_idle = gx_m68k_idle - gx_frame_idle;
+#endif
 
   if (pv->reg[1] & 0x20) {
     // as per https://gendev.spritesmind.net/forum/viewtopic.php?t=2202, IRQ

@@ -42,6 +42,14 @@ extern void pico32x_sram_from_gpgx(void); /* sram.sram into the game's backup RA
 
 extern const char *pico32x_last_error(void); /* the core's last error message */
 
+/* cheats (gx/gui/cheats.c): a 16-bit ROM patch (returns the data it
+   replaced, -1 out of the ROM), the end of the ROM patches, and a RAM write
+   each frame to the 68k RAM (0xFFxxxx) or the 32X RAM (0x06xxxxxx) */
+#define PICO32X_SDRAM 0x06000000
+extern int  pico32x_cheat_rom(uint32 address, uint16 data);
+extern void pico32x_cheat_rom_done(void);
+extern void pico32x_cheat_ram(uint32 address, uint16 data);
+
 /* PicoDrive's settings for the 32X games (config.p32x_*, menu 32X Settings) */
 #define PICO32X_RENDERER_GOOD     0
 #define PICO32X_RENDERER_ACCURATE 1
@@ -54,11 +62,14 @@ extern void pico32x_config_default(void);
 extern void pico32x_config_check(void);      /* values out of range back to the defaults */
 extern void pico32x_options_changed(void);   /* PicoDrive takes the settings again */
 
-/* Automatic SH-2 overclock (config.p32x_auto_oc): the SH-2 speeds go up to
-   the ones of the settings only while the game slows down */
-#define PICO32X_AUTO_OC_MAX 200   /* the speeds when it is turned on at 100% */
+/* Automatic SH-2 and 68k overclock (config.p32x_auto_oc, p32x_m68k_auto_oc):
+   the speeds go up to the ones of the settings only while the game slows
+   down */
+#define PICO32X_AUTO_OC_MAX      200   /* SH-2 speeds when it is turned on at 100% */
+#define PICO32X_M68K_AUTO_OC_MAX 100   /* 68k overclock when it is turned on without one */
 extern void pico32x_autooc_reset(void);       /* no overclock until the game settles */
 extern int  pico32x_autooc_text(char *text, int size); /* on-screen state, 0 when off */
 extern int  pico32x_sh2_speed(int slave);     /* speed in use, percent */
+extern int  pico32x_m68k_overclock(void);     /* 68k overclock in use, percent (0 off) */
 
 #endif

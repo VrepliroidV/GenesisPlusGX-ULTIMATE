@@ -25,3 +25,11 @@ p32x_bios_s
 Pico32xSetClocks
 gx_sh2_run_cycles
 gx_32x_cycles
+gx_m68k_cycles
+gx_m68k_idle
+gx_m68k_set_overclock
+gx_cheat_rom
+gx_cheat_ram
+gx_cheat_code_changed
+gx_m68k_vint_cycles
+gx_m68k_vint_idle

@@ -35,6 +35,23 @@ runs (`gx_sh2_run_cycles`, with `gx_32x_cycles()` for the 68k cycle count),
 for the automatic SH-2 overclock of `gx/pico32x.c`, which sets the speeds with
 `Pico32xSetClocks()`.
 
+Changed (with `GPGX_ULTIMATE`), for the automatic 68k overclock of
+`gx/pico32x.c`: the FAME 68k core (`cpu/fame/famec.c`, `famec_opcodes.h`)
+counts the cycles the main 68k waits, stopped or on an idle loop
+(`gx_m68k_idle`), `pico/pico_cmn.c` the cycles it runs (`gx_m68k_cycles`) and
+both from the start of a frame to its vertical interrupt
+(`gx_m68k_vint_cycles`, `gx_m68k_vint_idle`), and
+`platform/libretro/libretro.c` sets the overclock
+(`gx_m68k_set_overclock()`).
+
+Added (with `GPGX_ULTIMATE`) in `platform/libretro/libretro.c`: the codes of
+Genesis Plus GX ULTIMATE's cheat menu on a 32X game, `gx_cheat_rom()` (ROM,
+also in the copy of the first 64 KB the 68k reads in 32X mode),
+`gx_cheat_code_changed()` (drops the SH-2 recompiled code after ROM patches)
+and `gx_cheat_ram()` (68k RAM and 32X SDRAM, with the recompiled code there
+dropped when it changes). PicoDrive's own cheat code (`pico/patch.c`) is not
+used.
+
 Not changed, used as it is: the frame skip of the libretro core
 (`picodrive_frameskip` "auto"), with `gx/pico32x.c` as the frontend's audio
 buffer status: it says which frames to skip (32X Settings > Frame Skip).

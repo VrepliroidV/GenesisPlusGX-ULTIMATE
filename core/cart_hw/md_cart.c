@@ -46,6 +46,7 @@
 #include "eeprom_spi.h"
 #include "flash_cfi.h"
 #include "yx5200.h"
+#include "punchium.h"
 #include "megasd.h"
 
 /* Cart database entry */
@@ -588,6 +589,28 @@ void md_cart_init(void)
     /* initialize SPI EEPROM board */
     eeprom_spi_init();
   }
+  else if (strstr(rominfo.product,"T-574120"))
+  {
+    /* Paprium: its chip provides the RAM of the first 64 KB, decompression,
+       sprites and sound (punchium.c) */
+    cart.special |= HW_PUNCHIUM;
+
+    /* allocate & clear blip buffer for the chip's audio stream (48 kHz) */
+    if (!snd.blips[3])
+    {
+      snd.blips[3] = blip_new(snd.sample_rate / 10);
+    }
+    if (snd.blips[3])
+    {
+      blip_clear(snd.blips[3]);
+      blip_set_rates(snd.blips[3], 48000, snd.sample_rate);
+    }
+
+    punchium_cart_init();
+
+    /* backup RAM */
+    eeprom_spi_init();
+  }
   else if (strstr(rominfo.ROMType,"SF") && strstr(rominfo.product,"001"))
   {
     /* SF-001 mapper */
@@ -1037,6 +1060,12 @@ void md_cart_reset(int hard_reset)
     yx5200_reset();
   }
 
+  /* Paprium chip */
+  if (cart.special & HW_PUNCHIUM)
+  {
+    punchium_cart_reset();
+  }
+
   /* SVP chip */
   if (svp)
   {
@@ -1136,6 +1165,12 @@ int md_cart_context_save(uint8 *state)
     bufferptr += yx5200_context_save(&state[bufferptr]);
   }
 
+  /* Paprium chip */
+  if (cart.special & HW_PUNCHIUM)
+  {
+    bufferptr += punchium_context_save(&state[bufferptr]);
+  }
+
   return bufferptr;
 }
 
@@ -1208,6 +1243,12 @@ int md_cart_context_load(uint8 *state)
   if (cart.special & HW_YX5200)
   {
     bufferptr += yx5200_context_load(&state[bufferptr]);
+  }
+
+  /* Paprium chip */
+  if (cart.special & HW_PUNCHIUM)
+  {
+    bufferptr += punchium_context_load(&state[bufferptr]);
   }
 
   return bufferptr;

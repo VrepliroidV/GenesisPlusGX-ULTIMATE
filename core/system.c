@@ -151,8 +151,16 @@ void audio_set_rate(int samplerate, double framerate)
   /* Cartridge sound hardware enabled ? */
   if (snd.blips[3])
   {
-    /* initialize YX5200 audio */
-    yx5200_init(samplerate);
+    if (cart.special & HW_PUNCHIUM)
+    {
+      /* Paprium chip audio (48 kHz) */
+      blip_set_rates(snd.blips[3], 48000, samplerate);
+    }
+    else
+    {
+      /* initialize YX5200 audio */
+      yx5200_init(samplerate);
+    }
   }
 
   /* Reinitialize internal rates */
@@ -226,8 +234,16 @@ int audio_update(int16 *buffer)
   /* Cartridge sound hardware enabled ? */
   if (snd.blips[3])
   {
-    /* read YX5200 audio samples */
-    yx5200_update(size);
+    if (cart.special & HW_PUNCHIUM)
+    {
+      /* Paprium chip audio samples */
+      punchium_audio(size);
+    }
+    else
+    {
+      /* read YX5200 audio samples */
+      yx5200_update(size);
+    }
 
     /* add cartridge audio stream for audio mixing */
     mixed_blips++;

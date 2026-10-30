@@ -66,6 +66,7 @@
 #define HW_LOCK_ON  0x08
 #define HW_MEGASD   0x10
 #define HW_YX5200   0x20
+#define HW_PUNCHIUM 0x40  /* Paprium cartridge chip (punchium.c) */
 
 /* Cartridge extra hardware */
 typedef struct

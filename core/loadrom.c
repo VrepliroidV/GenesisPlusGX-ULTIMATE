@@ -555,6 +555,9 @@ int load_rom(char *filename)
 {
   int i, size;
 
+  /* the Paprium chip of the last game is not used any more */
+  punchium_shutdown();
+
 #ifdef USE_DYNAMIC_ALLOC
   if (!ext)
   {

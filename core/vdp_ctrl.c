@@ -697,8 +697,15 @@ void vdp_dma_update(unsigned int cycles)
   error("[%d(%d)][%d(%d)] DMA type %d (%d access/line)(%d cycles left)-> %d access (%d remaining) (%x)\n", v_counter, (v_counter + (cycles - mcycles_vdp)/MCYCLES_PER_LINE)%lines_per_frame, cycles, cycles%MCYCLES_PER_LINE,dma_type, rate, dma_cycles, dma_bytes, dma_length, m68k_get_reg(M68K_REG_PC));
 #endif
 
+  /* Paprium cartridge: DMA ends at once (punchium.c) */
+  if (fast_dma_hack)
+  {
+    dma_bytes = dma_length;
+    dma_cycles = MCYCLES_PER_LINE / rate;
+  }
+
   /* Check if DMA can be finished within current timeframe */
-  if (dma_length < dma_bytes)
+  else if (dma_length < dma_bytes)
   {
     /* Adjust remaining DMA bytes */
     dma_bytes = dma_length;

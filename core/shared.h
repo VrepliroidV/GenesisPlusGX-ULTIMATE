@@ -37,6 +37,7 @@
 #include "svp.h"
 #include "state.h"
 #include "autooc.h"
+#include "punchium.h"
 
 #endif /* _SHARED_H_ */
 

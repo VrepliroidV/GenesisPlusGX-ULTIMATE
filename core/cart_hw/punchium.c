@@ -211,7 +211,8 @@ static void reset_tile_cache() {
 		return;
 
 	memset(tile_cache.entries, 0, sizeof(TileCacheEntry) * MAX_TILE_CACHE_ENTRIES);
-	memset(tile_cache.hash_table, MAX_TILE_CACHE_ENTRIES, sizeof(uint32_t) * TILE_CACHE_HASH_SIZE);
+	for (int i = 0; i < TILE_CACHE_HASH_SIZE; i++)
+		tile_cache.hash_table[i] = MAX_TILE_CACHE_ENTRIES;  /* empty */
 	
 	tile_cache.clock = 0;
 	tile_cache.clock_hand = 0;
@@ -275,25 +276,34 @@ static inline uint32_t hash_tile_addr(uint32_t src) {
 	return hash % TILE_CACHE_HASH_SIZE;
 }
 
-// Алгоритм для поиска замещаемого слота
+/* The slot for a new tile (clock algorithm): from the clock hand, the first
+   one not used in the last MAX_TILE_CACHE_ENTRIES accesses; the ones passed
+   get a second chance (last use cleared), so it is found within one lap.
+   GPGX ULTIMATE: the original looped forever when a new tile came exactly at
+   access MAX_TILE_CACHE_ENTRIES after the cache was cleared (nothing is
+   older than clock - MAX_TILE_CACHE_ENTRIES = 0): the game and the console
+   froze a little after a music change. */
 static uint32_t find_replacement_slot() {
-	while (1) {
-		if (tile_cache.entries[tile_cache.clock_hand].last_used < 
-			tile_cache.clock - MAX_TILE_CACHE_ENTRIES) {
-			uint32_t slot = tile_cache.clock_hand;
-			tile_cache.clock_hand = (tile_cache.clock_hand + 1) % MAX_TILE_CACHE_ENTRIES;
-			return slot;
-		}
-		
-		tile_cache.entries[tile_cache.clock_hand].last_used = 0;
+	uint32_t oldest = (tile_cache.clock > MAX_TILE_CACHE_ENTRIES) ? tile_cache.clock - MAX_TILE_CACHE_ENTRIES : 0;
+	int n;
+
+	for (n = 0; n <= MAX_TILE_CACHE_ENTRIES; n++) {
+		uint32_t slot = tile_cache.clock_hand;
 		tile_cache.clock_hand = (tile_cache.clock_hand + 1) % MAX_TILE_CACHE_ENTRIES;
+		if (tile_cache.entries[slot].last_used <= oldest)
+			return slot;
+		tile_cache.entries[slot].last_used = 0;
 	}
+	return tile_cache.clock_hand;
 }
 
-static void tile_cache_decoder(uint32_t src, uint8_t *dst)
+/* need: bytes of the decoded data used. GPGX ULTIMATE: more than an entry
+   keeps (MAX_TILE_SIZE) is decoded every time, a cached copy would end with
+   the bytes of another tile. */
+static void tile_cache_decoder(uint32_t src, uint8_t *dst, int need)
 {
 	// Если кэш выключен, просто декомпрессируем
-	if (!punchium_tile_cache || !tile_cache.entries) {
+	if (!punchium_tile_cache || !tile_cache.entries || (need > MAX_TILE_SIZE)) {
 		punchium_decoder_type(src, dst);
 		return;
 	}
@@ -775,7 +785,7 @@ static void punchium_sfx_voice(int *out_l, int *out_r)
 		punchium_voice_t *voice = punchium_s.sfx + ch;
 		const int _rates[] = {1,2,4,5,8,9};  /* 48000, 24000, 12000, 9600, 6000, 5333 */
 
-		int rate = _rates[voice->type >> 4] << 16;  /* 16.16 */
+		int rate = _rates[((voice->type >> 4) < 6) ? (voice->type >> 4) : 5] << 16;  /* 16.16 */
 		int depth = voice->type & 0x03;
 		/* voice->type & 0xC0; */
 
@@ -1465,7 +1475,7 @@ reload:
 		static uint8 tile_ram[0x10000];
 		
 #if TILE_CACHE_ENABLE
-		tile_cache_decoder(ptr, tile_ram);
+		tile_cache_decoder(ptr, tile_ram, ofs * 0x20 + tileSize);
 #else
 		punchium_decoder_type(ptr, tile_ram);
 #endif

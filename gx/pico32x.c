@@ -730,6 +730,10 @@ int pico32x_load(const char *filename)
   core_init();
   pico32x_unload();
 
+  /* a Paprium game left: its music file and tile cache (load_rom does it
+     for the other games) */
+  punchium_shutdown();
+
   /* the 32X BIOS files, if there are any (PicoDrive has its own otherwise) */
   p32x_bios_g = read_file(config.sys_rom_32x[PICO32X_BIOS_68K], bios_g, sizeof(bios_g)) ? bios_g : NULL;
   p32x_bios_m = read_file(config.sys_rom_32x[PICO32X_BIOS_MASTER], bios_m, sizeof(bios_m)) ? bios_m : NULL;

@@ -140,6 +140,9 @@ static int config_load(void)
     }
     /* 32X settings: the defaults set before for older files, else checked */
     pico32x_config_check();
+
+    /* MODE on the same button as C (L and R of the 6-button USB pads were C) */
+    gx_input_CheckKeys();
     return 1;
   }
   return 0;

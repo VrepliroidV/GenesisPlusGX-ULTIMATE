@@ -14,6 +14,9 @@
  *   Xbox A -> A, B -> B, LT/RT/LB -> C, X -> X, Y -> Y, RB -> Z,
  *   Back -> Mode, Start -> Start, D-pad or left stick -> D-pad.
  *   Back + Right opens the menu.
+ * On the 6-button pads whose triggers are buttons (Retroflag Classic
+ * Controller-M: L = LB, R = LT, C = RT, Z = RB), only RT is C and LB and LT
+ * are Mode.
  *
  * In the menus, the 6-button pads (whose triggers are buttons, see
  * XInput_TriggersAsButtons, like the Retroflag Classic Controller-M) confirm

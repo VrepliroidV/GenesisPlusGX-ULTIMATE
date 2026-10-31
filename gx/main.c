@@ -43,7 +43,6 @@
  ****************************************************************************************/
 
 #include "shared.h"
-#include "gamepad.h"
 #include "gamesettings.h"
 #include "font.h"
 #include "gui.h"
@@ -258,23 +257,6 @@ static void run_emulation(void)
 
     /* auto crop layouts learned while playing */
     gx_video_AutoCropSave();
-    
-    /* test build: Paprium's accesses to the controller, for the controls */
-    if (cart.special & HW_PUNCHIUM)
-    {
-      char header[600];
-      int n = 0, c, k;
-      for (c = 0; c < 2; c++)
-        n += sprintf(header + n, "player %d: device %d port %d padtype %d\n", c + 1, config.input[c].device, config.input[c].port, config.input[c].padtype);
-      for (c = 0; c < 4; c++)
-      {
-        n += sprintf(header + n, "GameCube port %d keys A B C START X Y Z MODE MENU:", c + 1);
-        for (k = 0; k < 9; k++)
-          n += sprintf(header + n, " %04X", config.pad_keymap[c][k]);
-        n += sprintf(header + n, "\n");
-      }
-      padlog_save(DEFAULT_PATH "/paprium_pad.txt", header);
-    }
     
     /* show menu */
     ConfigRequested = 0;

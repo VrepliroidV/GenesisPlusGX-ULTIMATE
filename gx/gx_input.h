@@ -65,6 +65,7 @@ typedef struct
 extern void gx_input_Init(void);
 extern int gx_input_FindDevices(void);
 extern void gx_input_SetDefault(void);
+extern void gx_input_CheckKeys(void);  /* fixes a MODE key on C's button */
 extern void gx_input_Config(u8 chan, u8 device, u8 type);
 extern void gx_input_UpdateEmu(void);
 extern void gx_input_UpdateMenu(void);

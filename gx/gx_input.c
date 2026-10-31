@@ -55,8 +55,6 @@
 #ifdef HW_RVL
 /* USB Xbox 360 / XInput controllers merged into the GameCube pad calls */
 #include "usbpad_shim.h"
-#include "gamepad.h"
-u32 XInput_ButtonsHeld(int port);
 #endif
 
 /* Analog sticks sensitivity */
@@ -235,15 +233,6 @@ static void pad_update(s8 chan, u8 i)
 
   /* Retrieve current key mapping */
   u16 *pad_keymap = config.pad_keymap[chan];
-
-#ifdef HW_RVL
-  /* test build: what the first player's pad sends (Paprium log) */
-  if (i == 0)
-  {
-    padlog_host[0] = (chan < 4) ? XInput_ButtonsHeld(chan) : 0;
-    padlog_host[1] = p;
-  }
-#endif
 
   /* Default fast-forward key combo */
   if ((p & PAD_TRIGGER_R) && (PAD_ButtonsDown(0) & PAD_BUTTON_START))
@@ -1539,6 +1528,28 @@ int gx_input_FindDevices(void)
 
   /* return number of connected devices */
   return found;
+}
+
+/* GPGX ULTIMATE 1.2.1: the L and R of the 6-button USB pads (Retroflag
+   Classic Controller-M) gave C before, so MODE set on them in Keys Config
+   is on C's button and C pressed Mode too (Paprium: no jump with C). Such a
+   MODE goes back to the default Z trigger (Mode, L and R of those pads now),
+   and so does that button in the menu key combo. */
+void gx_input_CheckKeys(void)
+{
+  int i;
+  for (i = 0; i < 4; i++)
+  {
+    u16 c = config.pad_keymap[i][KEY_BUTTONC];
+    if (c && (config.pad_keymap[i][KEY_MODE] == c))
+    {
+      config.pad_keymap[i][KEY_MODE] = PAD_TRIGGER_Z;
+      if (config.pad_keymap[i][KEY_MENU] & c)
+      {
+        config.pad_keymap[i][KEY_MENU] = (config.pad_keymap[i][KEY_MENU] & ~c) | PAD_TRIGGER_Z;
+      }
+    }
+  }
 }
 
 void gx_input_SetDefault(void)

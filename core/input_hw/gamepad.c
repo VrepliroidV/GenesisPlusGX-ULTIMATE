@@ -56,132 +56,6 @@ static struct
 
 static uint8 latch;
 
-/* GPGX ULTIMATE, test build: the accesses of a Paprium game to the port A
-   pad during the last frames, written to a text file by padlog_save() */
-#define PADLOG_SIZE 40000
-typedef struct
-{
-  uint32 frame;     /* frame number */
-  uint32 cycles;    /* 68k cycles in the frame */
-  uint32 pc;        /* 68k program counter */
-  uint16 line;      /* VDP line */
-  uint16 a, b;      /* pad state (accesses); held, pressed words (frame end) */
-  uint8 op;         /* 'W' write, 'R' read, 'F' frame end */
-  uint8 val;        /* data written or read; pad type byte (frame end) */
-  uint8 mask;       /* TH/TR direction bits (write) */
-  uint8 step;       /* 6-button counter | TH state, before the access */
-  uint16 speed;     /* 68k speed in percent (overclock above 100) */
-  uint32 raw, host; /* frame end: the USB pad's buttons, the frontend's pad buttons */
-} padlog_t;
-uint32 padlog_host[2];  /* set by the frontend: USB pad buttons, pad buttons */
-static padlog_t *padlog;
-static unsigned int padlog_pos, padlog_count, padlog_frame;
-static uint32 padlog_pcs[16];
-static int padlog_npcs;
-
-static void padlog_add(int op, unsigned int val, unsigned int mask, unsigned int a, unsigned int b)
-{
-  padlog_t *e;
-
-  if (!(cart.special & HW_PUNCHIUM))
-    return;
-  if (!padlog)
-  {
-    padlog = (padlog_t *)malloc(PADLOG_SIZE * sizeof(padlog_t));
-    if (!padlog)
-      return;
-  }
-
-  e = &padlog[padlog_pos];
-  padlog_pos = (padlog_pos + 1) % PADLOG_SIZE;
-  if (padlog_count < PADLOG_SIZE)
-    padlog_count++;
-
-  e->frame = padlog_frame;
-  e->cycles = m68k.cycles;
-  e->pc = m68k.pc;
-  e->line = v_counter;
-  e->a = a;
-  e->b = b;
-  e->raw = padlog_host[0];
-  e->host = padlog_host[1];
-  e->op = op;
-  e->val = val;
-  e->mask = mask;
-  e->step = gamepad[0].Counter | (gamepad[0].State >> 6);
-#ifdef M68K_OVERCLOCK_SHIFT
-  e->speed = (m68k.cycle_ratio > 0) ? (uint16)(((long long)100 << M68K_OVERCLOCK_SHIFT) / m68k.cycle_ratio) : 0;
-#else
-  e->speed = 100;
-#endif
-
-  /* the code reading the pad (dumped with the log) */
-  if (op != 'F')
-  {
-    int i;
-    for (i = 0; i < padlog_npcs; i++)
-      if ((padlog_pcs[i] >> 8) == (m68k.pc >> 8)) break;
-    if ((i == padlog_npcs) && (padlog_npcs < 16))
-      padlog_pcs[padlog_npcs++] = m68k.pc;
-  }
-}
-
-static unsigned int padlog_byte(uint32 address)
-{
-  address &= 0xFFFFFF;
-  if (address >= 0xE00000)
-    return READ_BYTE(work_ram, address & 0xFFFF);
-  if (m68k.memory_map[address >> 16].read8)
-    return m68k.memory_map[address >> 16].read8(address) & 0xFF;
-  if (m68k.memory_map[address >> 16].base)
-    return READ_BYTE(m68k.memory_map[address >> 16].base, address & 0xFFFF);
-  return 0xFF;
-}
-
-int padlog_save(const char *filename, const char *header)
-{
-  FILE *f;
-  unsigned int i, n;
-
-  if (!padlog || !padlog_count)
-    return 0;
-  f = fopen(filename, "w");
-  if (!f)
-    return 0;
-
-  fprintf(f, "Paprium pad log: port A device %d (0 = 3 buttons, 1 = 6 buttons), %u entries\n", input.dev[0], padlog_count);
-  if (header)
-    fprintf(f, "%s", header);
-  fprintf(f, "frame line cycles pc op value mask step | pad / F: type held pressed 68k-speed%% usb-buttons pad-buttons\n");
-  n = (padlog_pos + PADLOG_SIZE - padlog_count) % PADLOG_SIZE;
-  for (i = 0; i < padlog_count; i++)
-  {
-    padlog_t *e = &padlog[(n + i) % PADLOG_SIZE];
-    if (e->op == 'F')
-      fprintf(f, "%u %u %u F type=%02X held=%04X pressed=%04X speed=%u usb=%08X pad=%04X\n", e->frame, e->line, e->cycles, e->val, e->a, e->b, e->speed, e->raw, e->host);
-    else
-      fprintf(f, "%u %u %u %06X %c %02X %02X %u | %04X\n", e->frame, e->line, e->cycles, e->pc, e->op, e->val, e->mask, e->step, e->a);
-  }
-
-  /* the code around each place reading the pad */
-  for (i = 0; i < (unsigned int)padlog_npcs; i++)
-  {
-    uint32 start = (padlog_pcs[i] & ~1) - 0x100;
-    uint32 a;
-    fprintf(f, "\ncode near %06X:", padlog_pcs[i]);
-    for (a = start; a < start + 0x200; a += 2)
-    {
-      if (!((a - start) & 0x1F))
-        fprintf(f, "\n%06X:", a);
-      fprintf(f, " %02X%02X", padlog_byte(a), padlog_byte(a + 1));
-    }
-    fprintf(f, "\n");
-  }
-
-  fclose(f);
-  return 1;
-}
-
 
 void gamepad_reset(int port)
 {
@@ -211,12 +85,6 @@ void gamepad_refresh(int port)
 
 void gamepad_end_frame(int port, unsigned int cycles)
 {
-  if ((port == 0) && (cart.special & HW_PUNCHIUM))
-  {
-    padlog_add('F', READ_BYTE(work_ram, 0x7035), 0, READ_WORD(work_ram, 0x7028), READ_WORD(work_ram, 0x702A));
-    padlog_frame++;
-  }
-
   if (gamepad[port].Latency > cycles)
   {
     /* adjust TH direction switching latency for next frame */
@@ -309,17 +177,11 @@ INLINE unsigned char gamepad_read(int port)
     }
   }
 
-  if (port == 0)
-    padlog_add('R', data, 0, pad, 0);
-
   return data;
 }
 
 INLINE void gamepad_write(int port, unsigned char data, unsigned char mask)
 {
-  if (port == 0)
-    padlog_add('W', data, mask, input.pad[0], 0);
-
   /* Check TH pin direction */
   if (mask & 0x40)
   {

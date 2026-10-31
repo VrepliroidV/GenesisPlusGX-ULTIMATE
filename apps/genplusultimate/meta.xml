@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<app version="1">
+  <name>Genesis Plus GX ULTIMATE</name>
+  <coder>VrepliroidV (Genesis Plus GX: Eke-Eke)</coder>
+  <version>1.2.1 beta 7</version>
+  <release_date>20261028</release_date>
+  <short_description>Sega Mega Drive / Genesis emulator</short_description>
+  <long_description>Genesis Plus GX ULTIMATE by VrepliroidV, based on Genesis Plus GX 1.7.5 by Eke-Eke: Mega Drive / Genesis, Mega CD, 32X, Master System, Game Gear and SG-1000 emulator. The 32X games run on PicoDrive (notaz, irixxxx and others), with its settings in System > 32X Settings.
+
+It also reads Xbox 360 (XInput) USB controllers and 2.4 GHz receivers plugged into the Wii, as GameCube controllers. Mode + Right opens the menu. PNG bezels around the game in 480i/480p and Auto Crop of black borders (Video settings), automatic 68k overclock (System settings), per-game settings. Menu music from the music folder, with a mini player.</long_description>
+</app>

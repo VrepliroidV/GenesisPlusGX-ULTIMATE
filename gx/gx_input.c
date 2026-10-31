@@ -55,6 +55,8 @@
 #ifdef HW_RVL
 /* USB Xbox 360 / XInput controllers merged into the GameCube pad calls */
 #include "usbpad_shim.h"
+#include "gamepad.h"
+u32 XInput_ButtonsHeld(int port);
 #endif
 
 /* Analog sticks sensitivity */
@@ -233,6 +235,15 @@ static void pad_update(s8 chan, u8 i)
 
   /* Retrieve current key mapping */
   u16 *pad_keymap = config.pad_keymap[chan];
+
+#ifdef HW_RVL
+  /* test build: what the first player's pad sends (Paprium log) */
+  if (i == 0)
+  {
+    padlog_host[0] = (chan < 4) ? XInput_ButtonsHeld(chan) : 0;
+    padlog_host[1] = p;
+  }
+#endif
 
   /* Default fast-forward key combo */
   if ((p & PAD_TRIGGER_R) && (PAD_ButtonsDown(0) & PAD_BUTTON_START))

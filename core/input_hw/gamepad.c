@@ -71,7 +71,9 @@ typedef struct
   uint8 mask;       /* TH/TR direction bits (write) */
   uint8 step;       /* 6-button counter | TH state, before the access */
   uint16 speed;     /* 68k speed in percent (overclock above 100) */
+  uint32 raw, host; /* frame end: the USB pad's buttons, the frontend's pad buttons */
 } padlog_t;
+uint32 padlog_host[2];  /* set by the frontend: USB pad buttons, pad buttons */
 static padlog_t *padlog;
 static unsigned int padlog_pos, padlog_count, padlog_frame;
 static uint32 padlog_pcs[16];
@@ -101,6 +103,8 @@ static void padlog_add(int op, unsigned int val, unsigned int mask, unsigned int
   e->line = v_counter;
   e->a = a;
   e->b = b;
+  e->raw = padlog_host[0];
+  e->host = padlog_host[1];
   e->op = op;
   e->val = val;
   e->mask = mask;
@@ -134,7 +138,7 @@ static unsigned int padlog_byte(uint32 address)
   return 0xFF;
 }
 
-int padlog_save(const char *filename)
+int padlog_save(const char *filename, const char *header)
 {
   FILE *f;
   unsigned int i, n;
@@ -146,13 +150,15 @@ int padlog_save(const char *filename)
     return 0;
 
   fprintf(f, "Paprium pad log: port A device %d (0 = 3 buttons, 1 = 6 buttons), %u entries\n", input.dev[0], padlog_count);
-  fprintf(f, "frame line cycles pc op value mask step | pad / F: type held pressed 68k-speed%%\n");
+  if (header)
+    fprintf(f, "%s", header);
+  fprintf(f, "frame line cycles pc op value mask step | pad / F: type held pressed 68k-speed%% usb-buttons pad-buttons\n");
   n = (padlog_pos + PADLOG_SIZE - padlog_count) % PADLOG_SIZE;
   for (i = 0; i < padlog_count; i++)
   {
     padlog_t *e = &padlog[(n + i) % PADLOG_SIZE];
     if (e->op == 'F')
-      fprintf(f, "%u %u %u F type=%02X held=%04X pressed=%04X speed=%u\n", e->frame, e->line, e->cycles, e->val, e->a, e->b, e->speed);
+      fprintf(f, "%u %u %u F type=%02X held=%04X pressed=%04X speed=%u usb=%08X pad=%04X\n", e->frame, e->line, e->cycles, e->val, e->a, e->b, e->speed, e->raw, e->host);
     else
       fprintf(f, "%u %u %u %06X %c %02X %02X %u | %04X\n", e->frame, e->line, e->cycles, e->pc, e->op, e->val, e->mask, e->step, e->a);
   }

@@ -43,6 +43,7 @@
  ****************************************************************************************/
 
 #include "shared.h"
+#include "gamepad.h"
 #include "gamesettings.h"
 #include "font.h"
 #include "gui.h"
@@ -257,6 +258,12 @@ static void run_emulation(void)
 
     /* auto crop layouts learned while playing */
     gx_video_AutoCropSave();
+    
+    /* test build: Paprium's accesses to the controller, for the controls */
+    if (cart.special & HW_PUNCHIUM)
+    {
+      padlog_save(DEFAULT_PATH "/paprium_pad.txt");
+    }
     
     /* show menu */
     ConfigRequested = 0;

@@ -735,6 +735,13 @@ int load_rom(char *filename)
     scd.cartridge.boot = 0x00;
   }
 
+  /* Paprium: a Mega Drive cartridge with its own chip, never with the Mega CD */
+  /* hardware (a CD image still mounted from an earlier game is taken out)    */
+  else if ((system_hw == SYSTEM_MD) && (strstr(rominfo.product, "T-574120") != NULL))
+  {
+    cdd_unload();
+  }
+
   /* 16-bit ROM cartridge (max. 8MB) with optional CD hardware add-on support enabled */
   else if ((system_hw == SYSTEM_MD) && (cart.romsize <= 0x800000) && (config.add_on != HW_ADDON_NONE))
   {

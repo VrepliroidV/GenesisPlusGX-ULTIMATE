@@ -23,8 +23,8 @@ static int md_menu;
    6-button pad in XInput mode. On most pads the triggers and LB all give C,
    so C works whichever of them a pad uses for it. On the 6-button pads whose
    triggers are buttons (the Retroflag Classic Controller-M: L is LB, R is
-   LT, C is RT, Z is RB), only RT is C, and L and R are Mode, so C and Mode
-   are different buttons for the key mapping too. */
+   LT, C is RT, Z is RB), only RT is C, and L and R are buttons of their own
+   (PAD_USB_L, PAD_USB_R: Mode in the game unless a key is set on them). */
 static u16 to_gamecube(u32 x, bool six_button)
 {
 	u16 p = 0;
@@ -36,8 +36,9 @@ static u16 to_gamecube(u32 x, bool six_button)
 	if (x & XI_B) p |= PAD_BUTTON_A;               /* B */
 	if (six_button)
 	{
-		if (x & XI_RT) p |= PAD_BUTTON_X;               /* C */
-		if (x & (XI_LT | XI_LB)) p |= PAD_TRIGGER_Z;    /* L, R: Mode */
+		if (x & XI_RT) p |= PAD_BUTTON_X;  /* C */
+		if (x & XI_LB) p |= PAD_USB_L;     /* L */
+		if (x & XI_LT) p |= PAD_USB_R;     /* R */
 	}
 	else if (x & (XI_LT | XI_RT | XI_LB)) p |= PAD_BUTTON_X; /* C */
 	if (x & XI_X) p |= PAD_TRIGGER_L;              /* X */
@@ -59,7 +60,7 @@ static u16 to_menu(u32 x, bool six_button)
 	u16 p = to_gamecube(x, six_button);
 	if (six_button)
 	{
-		p &= ~(PAD_BUTTON_A | PAD_BUTTON_B | PAD_TRIGGER_Z);
+		p &= ~(PAD_BUTTON_A | PAD_BUTTON_B | PAD_TRIGGER_Z | PAD_USB_L | PAD_USB_R);
 		if (x & XI_RT)   p |= PAD_BUTTON_A;   /* C */
 		if (x & XI_B)    p |= PAD_BUTTON_B;   /* B */
 		if (x & XI_BACK) p |= PAD_TRIGGER_Z;  /* Mode (L and R do nothing here) */

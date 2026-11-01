@@ -174,6 +174,10 @@ static void pad_config(int chan, int first_key, int last_key)
       else if (p & PAD_TRIGGER_L) p = PAD_TRIGGER_L;
       else if (p & PAD_TRIGGER_Z) p = PAD_TRIGGER_Z;
       else if (p & PAD_BUTTON_START) p = PAD_BUTTON_START;
+#ifdef HW_RVL
+      else if (p & PAD_USB_L) p = PAD_USB_L;  /* L and R of 6-button USB pads */
+      else if (p & PAD_USB_R) p = PAD_USB_R;
+#endif
       else first_key = MAX_KEYS;
 
       /* update key mapping */
@@ -261,11 +265,20 @@ static void pad_update(s8 chan, u8 i)
   {
     case DEVICE_PAD6B:
     {
+      u16 mode = pad_keymap[KEY_MODE];
+#ifdef HW_RVL
+      /* L and R of 6-button USB pads without a key of their own: Mode */
+      u16 keys = 0;
+      int k;
+      for (k = 0; k < MAX_KEYS; k++) keys |= pad_keymap[k];
+      mode |= (PAD_USB_L | PAD_USB_R) & ~keys;
+#endif
+
       /* X,Y,Z,MODE buttons */
       if (p & pad_keymap[KEY_BUTTONX]) input.pad[i] |= INPUT_X;
       if (p & pad_keymap[KEY_BUTTONY]) input.pad[i] |= INPUT_Y;
       if (p & pad_keymap[KEY_BUTTONZ]) input.pad[i] |= INPUT_Z;
-      if (p & pad_keymap[KEY_MODE])    input.pad[i] |= INPUT_MODE;
+      if (p & mode)                    input.pad[i] |= INPUT_MODE;
    }
 
     case DEVICE_PAD3B:
@@ -1533,8 +1546,9 @@ int gx_input_FindDevices(void)
 /* GPGX ULTIMATE 1.2.1: the L and R of the 6-button USB pads (Retroflag
    Classic Controller-M) gave C before, so MODE set on them in Keys Config
    is on C's button and C pressed Mode too (Paprium: no jump with C). Such a
-   MODE goes back to the default Z trigger (Mode, L and R of those pads now),
-   and so does that button in the menu key combo. */
+   MODE goes back to the default Z trigger (the Mode button; L and R are Mode
+   too while no key is set on them), and so does that button in the menu key
+   combo. */
 void gx_input_CheckKeys(void)
 {
   int i;

@@ -15,8 +15,10 @@
  *   Back -> Mode, Start -> Start, D-pad or left stick -> D-pad.
  *   Back + Right opens the menu.
  * On the 6-button pads whose triggers are buttons (Retroflag Classic
- * Controller-M: L = LB, R = LT, C = RT, Z = RB), only RT is C and LB and LT
- * are Mode.
+ * Controller-M: L = LB, R = LT, C = RT, Z = RB), only RT is C, and LB and LT
+ * are buttons of their own, PAD_USB_L and PAD_USB_R: in the game they are
+ * Mode unless Keys Config puts a key on them, and they are never part of
+ * another button (the menu combo is the Mode button + Right).
  *
  * In the menus, the 6-button pads (whose triggers are buttons, see
  * XInput_TriggersAsButtons, like the Retroflag Classic Controller-M) confirm
@@ -34,6 +36,11 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/* The L and R of those pads: bits a GameCube controller never reports
+   (libogc clears 0x0080, and 0x2000 is a read error) */
+#define PAD_USB_L 0x0080
+#define PAD_USB_R 0x2000
 
 u32 USBPAD_ScanPads(void);
 u16 USBPAD_ButtonsHeld(int chan);

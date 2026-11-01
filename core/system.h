@@ -110,6 +110,7 @@ extern void audio_set_rate(int samplerate, double framerate);
 extern void audio_reset(void);
 extern void audio_shutdown(void);
 extern int audio_update(int16 *buffer);
+extern void audio_filter(int16 *buffer, int size);  /* filter and mono of the audio settings */
 extern void audio_set_equalizer(void);
 extern void system_init(void);
 extern void system_reset(void);

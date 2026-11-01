@@ -60,6 +60,7 @@
 #define CONFIG_SIZE_BEFORE_32X ((offsetof(t_config, lastdir_32x) + 3) & ~3)
 #define CONFIG_SIZE_BEFORE_32X_SETTINGS ((offsetof(t_config, p32x_msh2) + 3) & ~3)
 #define CONFIG_SIZE_BEFORE_32X_FRAMESKIP ((offsetof(t_config, p32x_frameskip) + 3) & ~3)
+#define CONFIG_SIZE_BEFORE_Z80_AUTO_OC ((offsetof(t_config, z80_auto_overclock) + 3) & ~3)
 
 t_config config;
 
@@ -76,7 +77,8 @@ static int config_load(void)
     long size = ftell(fp);
     if ((size != sizeof(config)) && (size != CONFIG_SIZE_BEFORE_AUTOCROP) && (size != CONFIG_SIZE_BEFORE_AUTOCROP_SCALE) &&
         (size != CONFIG_SIZE_BEFORE_BEZEL) && (size != CONFIG_SIZE_BEFORE_MUSIC) && (size != CONFIG_SIZE_BEFORE_32X) &&
-        (size != CONFIG_SIZE_BEFORE_32X_SETTINGS) && (size != CONFIG_SIZE_BEFORE_32X_FRAMESKIP))
+        (size != CONFIG_SIZE_BEFORE_32X_SETTINGS) && (size != CONFIG_SIZE_BEFORE_32X_FRAMESKIP) &&
+        (size != CONFIG_SIZE_BEFORE_Z80_AUTO_OC))
     {
       fclose(fp);
       return 0;
@@ -98,6 +100,7 @@ static int config_load(void)
     config.autocrop_scale = AUTOCROP_SCALE_SMOOTH;
     config.m68k_auto_overclock = 0;
     config.s68k_auto_overclock = 0;
+    config.z80_auto_overclock = 0;
     fread(&config, size, 1, fp);
     fclose(fp);
     if (size < (long)(offsetof(t_config, bezel) + sizeof(config.bezel)))
@@ -137,6 +140,10 @@ static int config_load(void)
     if ((size <= (long)offsetof(t_config, s68k_auto_overclock)) || (config.s68k_auto_overclock > 1))
     {
       config.s68k_auto_overclock = 0;
+    }
+    if ((size <= (long)offsetof(t_config, z80_auto_overclock)) || (config.z80_auto_overclock > 1))
+    {
+      config.z80_auto_overclock = 0;
     }
     /* 32X settings: the defaults set before for older files, else checked */
     pico32x_config_check();
@@ -208,6 +215,7 @@ void config_default(void)
   config.s68k_overclock = 1.0;
   config.s68k_auto_overclock = 0;
   config.z80_overclock  = 1.0;
+  config.z80_auto_overclock = 0;
 
   /* video options */
   config.xshift   = 0;

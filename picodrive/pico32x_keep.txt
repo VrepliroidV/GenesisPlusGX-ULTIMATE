@@ -33,3 +33,5 @@ gx_cheat_ram
 gx_cheat_code_changed
 gx_m68k_vint_cycles
 gx_m68k_vint_idle
+gx_fm_gain
+gx_psg_gain

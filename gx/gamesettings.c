@@ -92,6 +92,7 @@ static const t_game_field fields[] =
   FIELD(s68k_overclock, T_FLOAT),
   FIELD(s68k_auto_overclock, T_U8),
   FIELD(z80_overclock, T_FLOAT),
+  FIELD(z80_auto_overclock, T_U8),
   /* 32X (PicoDrive) */
   FIELD(p32x_drc, T_U8),
   FIELD(p32x_renderer, T_U8),
@@ -303,6 +304,8 @@ void gamesettings_load(void)
       if (config.s68k_overclock < 1.0) config.s68k_overclock = 1.0;
       if (config.s68k_auto_overclock > 1) config.s68k_auto_overclock = 0;
       if (config.s68k_auto_overclock && (config.s68k_overclock <= 1.0)) config.s68k_overclock = 3.0;
+      if (config.z80_auto_overclock > 1) config.z80_auto_overclock = 0;
+      if (config.z80_auto_overclock && (config.z80_overclock <= 1.0)) config.z80_overclock = 3.0;
       if (config.z80_overclock < 1.0) config.z80_overclock = 1.0;
       config.bezel[sizeof(config.bezel) - 1] = 0;
       if (strchr(config.bezel, '/') || strchr(config.bezel, '\\')) config.bezel[0] = 0;

@@ -37,6 +37,7 @@ extern void gx_m68k_set_overclock(int percent);
 extern int gx_cheat_rom(unsigned int addr, unsigned int data);
 extern void gx_cheat_code_changed(void);
 extern void gx_cheat_ram(unsigned int addr, unsigned int data, int word);
+extern int gx_fm_gain, gx_psg_gain;  /* FM and PSG volumes, 256 = PicoDrive's levels */
 
 int pico32x_active = 0;
 
@@ -67,7 +68,9 @@ static double out_frac = 0.0;   /* samples owed to the next frame */
 static double read_pos = 0.0;   /* position in the FIFO, between two samples */
 
 /* Core options: the 32X settings of the menu (config.p32x_*, also per game),
-   the sound rate the video needs and the region of the settings */
+   the sound settings of the Audio menu (chip, high-quality FM; the filter is
+   applied to the output, see pico32x_audio), the sound rate the video needs
+   and the region of the settings */
 static char opt_text[4][16];
 
 static const char *option_value(const char *key)
@@ -90,16 +93,17 @@ static const char *option_value(const char *key)
     return opt_text[0];
   }
   if (!strcmp(key, "picodrive_fmchip"))
-    return config.p32x_ym2612 ? "ym2612" : "ym3438";
+    /* YM2612 Type: DISCRETE is the model 1 chip, the others have no ladder
+       effect, as the YM3438 */
+    return (config.ym2612 == YM2612_DISCRETE) ? "ym2612" : "ym3438";
   if (!strcmp(key, "picodrive_fm_filter"))
-    return config.p32x_fm_filter ? "on" : "off";
+    /* High-Quality FM: PicoDrive's FM resampling filter */
+    return config.hq_fm ? "on" : "off";
   if (!strcmp(key, "picodrive_audio_filter"))
-    return config.p32x_lowpass ? "low-pass" : "disabled";
+    /* Filtering: Genesis Plus GX's own, on the output */
+    return "disabled";
   if (!strcmp(key, "picodrive_lowpass_range"))
-  {
-    snprintf(opt_text[1], sizeof(opt_text[1]), "%d", config.p32x_lowpass ? config.p32x_lowpass : 60);
-    return opt_text[1];
-  }
+    return "60";
   if (!strcmp(key, "picodrive_gx_pwm"))
     return config.p32x_pwm ? "enabled" : "disabled";
   if (!strcmp(key, "picodrive_gx_pwm_irq_opt"))
@@ -845,6 +849,11 @@ int pico32x_frame(void)
   pad_bits[0] = md_to_retro(input.pad[0]);
   pad_bits[1] = md_to_retro(input.pad[4]);
 
+  /* FM and PSG volumes of the Audio menu, at their defaults the levels of
+     PicoDrive (FM 1.00, PSG 1.50) */
+  gx_fm_gain = config.fm_preamp * 256 / 100;
+  gx_psg_gain = config.psg_preamp * 256 / 150;
+
   /* skip the picture of this frame? (PicoDrive asks it in retro_run) */
   skip = fs_skip();
   if (audio_status_cb)
@@ -912,6 +921,9 @@ int pico32x_audio(int16 *out)
   fifo_len -= used;
   if (fifo_len > 0)
     memmove(fifo, fifo + used * 2, fifo_len * 4);
+
+  /* the filter (low-pass or 3-band EQ) and mono output of the Audio menu */
+  audio_filter(out, n);
   return n;
 }
 

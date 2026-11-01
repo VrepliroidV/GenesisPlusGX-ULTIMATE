@@ -2472,12 +2472,20 @@ int gx_video_Update(int status)
            68k of the Mega CD) */
         int main_oc = autooc.enabled && ((system_hw & SYSTEM_PBC) == SYSTEM_MD) && !pico32x_active;
         int sub_oc = autooc_sub.enabled && (system_hw == SYSTEM_MCD);
+        int z80_oc = autooc_z80.enabled && ((system_hw & SYSTEM_PBC) != SYSTEM_MD);
         char p32x_oc[48];
         if (pico32x_autooc_text(p32x_oc, sizeof(p32x_oc)))
         {
           /* 32X game: the automatic SH-2 overclock (gx/pico32x.c) */
           char text[80];
           snprintf(text, sizeof(text), "%s\n%s", msg, p32x_oc);
+          gxDrawOnScreenText(text);
+        }
+        else if (z80_oc)
+        {
+          /* 8-bit game: the automatic Z80 overclock */
+          char text[80];
+          snprintf(text, sizeof(text), "%s\nZ80 %1.1fx %d%%", msg, autooc_z80.ratio[autooc_z80.level], (autooc_z80.busy + 5) / 10);
           gxDrawOnScreenText(text);
         }
         else if (main_oc || sub_oc)

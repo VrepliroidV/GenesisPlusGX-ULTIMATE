@@ -266,6 +266,24 @@ int audio_update(int16 *buffer)
     blip_read_samples(snd.blips[0], buffer, size);
   }
 
+  audio_filter(buffer, size);
+
+#ifdef LOGSOUND
+  error("%d samples returned\n\n",size);
+#endif
+
+  return size;
+}
+
+/* the filter and the mono output of the audio settings, on size stereo
+   samples (also the sound of the 32X games, gx/pico32x.c) */
+void audio_filter(int16 *buffer, int size)
+{
+  if (size <= 0)
+  {
+    return;
+  }
+
   /* Audio filtering */
   if (config.filter)
   {
@@ -338,12 +356,6 @@ int audio_update(int16 *buffer)
     }
     while (--samples);
   }
-
-#ifdef LOGSOUND
-  error("%d samples returned\n\n",size);
-#endif
-
-  return size;
 }
 
 /****************************************************************
@@ -1432,6 +1444,12 @@ void system_frame_sms(int do_skip)
     /* update 6-Buttons & Lightguns */
     input_refresh();
 
+    /* automatic Z80 overclock: off on screen changes */
+    if ((line == AUTOOC_SAMPLE_LINE) && autooc_z80.enabled)
+    {
+      autooc_sample();
+    }
+
     /* H-Int counter */
     if (h_counter == 0)
     {
@@ -1474,6 +1492,12 @@ void system_frame_sms(int do_skip)
   {
     bitmap.viewport.ow = bitmap.viewport.w;
     bitmap.viewport.changed |= 1;
+  }
+
+  /* automatic Z80 overclock: how much of the frame the Z80 waited */
+  if (autooc_z80.enabled)
+  {
+    autooc_end_frame(&autooc_z80, mcycles_vdp);
   }
 
   /* adjust timings for next frame */

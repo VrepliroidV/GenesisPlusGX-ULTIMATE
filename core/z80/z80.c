@@ -703,11 +703,24 @@ INLINE UINT32 ARG16(void)
 #define PUSH(SR) do { SP -= 2; WM16( SPD, &Z80.SR ); } while (0)
 
 /***************************************************************
+ * GPGX ULTIMATE: a jump a few bytes back (from the instruction after
+ * it, next) may be a loop polling something until the next frame: the
+ * automatic overclock counts the turns that change no register
+ ***************************************************************/
+#define AUTOOC_Z80_JUMP(next) {                                     \
+  if (autooc_z80.enabled && ((UINT16)((next) - PC) <= (AUTOOC_SPIN_BYTES + 3)) \
+      && ((UINT16)((next) - PC) != 0))                              \
+    autooc_spin_z80(PC);                                            \
+}
+
+/***************************************************************
  * JP
  ***************************************************************/
 #define JP {                                    \
+  UINT16 next = PC + 2;                         \
   PCD = ARG16();                                \
   WZ = PCD;                                     \
+  AUTOOC_Z80_JUMP(next);                        \
 }
 
 /***************************************************************
@@ -716,8 +729,10 @@ INLINE UINT32 ARG16(void)
 #define JP_COND(cond) {                         \
   if (cond)                                     \
   {                                             \
+    UINT16 next = PC + 2;                       \
     PCD = ARG16();                              \
     WZ = PCD;                                   \
+    AUTOOC_Z80_JUMP(next);                      \
   }                                             \
   else                                          \
   {                                             \
@@ -730,8 +745,10 @@ INLINE UINT32 ARG16(void)
  ***************************************************************/
 #define JR() {                                            \
   INT8 arg = (INT8)ARG(); /* ARG() also increments PC */  \
+  UINT16 next = PC;                                       \
   PC += arg;        /* so don't do PC += ARG() */         \
   WZ = PC;                                                \
+  AUTOOC_Z80_JUMP(next);                                  \
 }
 
 /***************************************************************
@@ -3430,7 +3447,14 @@ void z80_run(unsigned int cycles)
 
     Z80.after_ei = FALSE;
     R++;
-    EXEC_INLINE(op,ROP());
+    {
+      /* halted until an interrupt: waiting (automatic overclock) */
+      UINT32 from = Z80.cycles;
+      UINT8 halted = Z80.halt;
+      EXEC_INLINE(op,ROP());
+      if (halted && autooc_z80.enabled)
+        autooc_z80.idle += Z80.cycles - from;
+    }
   }
 } 
 

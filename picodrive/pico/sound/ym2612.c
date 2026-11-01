@@ -1210,6 +1210,12 @@ disabled:
 				smp &= ~0x1f; /* drop bits (DAC has 9 bits) */
 				smp -= (smp < 0 ? 7:0) << 5; /* discontinuity */
 			}
+#ifdef GPGX_ULTIMATE
+			{
+				extern int gx_fm_gain; /* FM volume of Genesis Plus GX ULTIMATE */
+				smp = (smp * gx_fm_gain) >> 8;
+			}
+#endif
 			if (ct->pack & 1) { /* stereo */
 				if (ct->pack & 0x20) /* L */ /* TODO: check correctness */
 					buffer[scounter*2] += smp;

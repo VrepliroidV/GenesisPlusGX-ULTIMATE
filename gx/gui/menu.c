@@ -417,11 +417,14 @@ static gui_item items_system[] =
   {NULL,NULL,"Sub 68k Overclock: 3.0x",    "Adjust Sega CD / Mega-CD CPU clock speed",    56,132,276,48},
   {NULL,NULL,"Sub 68k Auto Overclock: OFF", "Overclock only when the game slows down",    56,132,276,48},
   {NULL,NULL,"Z80 Overclock: 3.0x",        "Adjust Z80 CPU clock speed",                  56,132,276,48},
+  {NULL,NULL,"Z80 Auto Overclock: OFF",    "Only when Master System/Game Gear games slow down", 56,132,276,48},
   {NULL,NULL,"32X Settings",               "Settings of the 32X emulation",               56,132,276,48},
   {NULL,NULL,"SVP Cycles: 1500",           "Adjust SVP chip emulation speed",             56,132,276,48}
 };
 
-/* 32X settings (PicoDrive, config.p32x_*) */
+/* 32X settings (PicoDrive, config.p32x_*). The FM and PSG sound of the 32X
+   games follows the Audio settings (gx/pico32x.c); config.p32x_ym2612,
+   p32x_fm_filter and p32x_lowpass are no longer used. */
 static gui_item items_pico32x[] =
 {
   {NULL,NULL,"Dynamic Recompiler: ON",     "OFF is much slower: only to look for glitches", 56,132,276,48},
@@ -435,10 +438,7 @@ static gui_item items_pico32x[] =
   {NULL,NULL,"Idle Loop Detection: ON",    "Turn off if a game hangs (applies at reset)",   56,132,276,48},
   {NULL,NULL,"PWM Sound: ON",              "32X sound chip (OFF is faster, no 32X sound)",  56,132,276,48},
   {NULL,NULL,"PWM IRQ Optimization: OFF",  "Faster, but may break the 32X sound",           56,132,276,48},
-  {NULL,NULL,"No Sprite Limit: OFF",       "Less flicker, but some effects may break",      56,132,276,48},
-  {NULL,NULL,"FM Chip: YM3438",            "Mega Drive model 1 (YM2612) or 2 (YM3438) sound", 56,132,276,48},
-  {NULL,NULL,"FM Filtering: OFF",          "Better FM sound, slower",                       56,132,276,48},
-  {NULL,NULL,"Low-Pass Filter: OFF",       "Model 1 low-pass sound filter strength",        56,132,276,48}
+  {NULL,NULL,"No Sprite Limit: OFF",       "Less flicker, but some effects may break",      56,132,276,48}
 };
 
 /* Video options */
@@ -671,7 +671,7 @@ static gui_menu menu_pico32x =
 {
   "32X Settings",
   0,0,
-  15,4,6,0,
+  12,4,6,0,
   items_pico32x,
   buttons_list,
   bg_list,
@@ -1318,6 +1318,10 @@ static void soundmenu ()
   }
 
   GUI_DeleteMenu(m);
+
+  /* a 32X game takes the sound settings again (PicoDrive: FM chip,
+     high-quality FM) */
+  pico32x_options_changed();
 }
 
 /****************************************************************************
@@ -1489,12 +1493,6 @@ static void pico32x_labels(gui_item *items)
   sprintf(items[9].text, "PWM Sound: %s", config.p32x_pwm ? "ON" : "OFF");
   sprintf(items[10].text, "PWM IRQ Optimization: %s", config.p32x_pwm_irq_opt ? "ON" : "OFF");
   sprintf(items[11].text, "No Sprite Limit: %s", config.p32x_sprlim ? "ON" : "OFF");
-  sprintf(items[12].text, "FM Chip: %s", config.p32x_ym2612 ? "YM2612" : "YM3438");
-  sprintf(items[13].text, "FM Filtering: %s", config.p32x_fm_filter ? "ON" : "OFF");
-  if (config.p32x_lowpass)
-    sprintf(items[14].text, "Low-Pass Filter: %d%%", config.p32x_lowpass);
-  else
-    sprintf(items[14].text, "Low-Pass Filter: OFF");
 }
 
 static void pico32xmenu(void)
@@ -1577,19 +1575,6 @@ static void pico32xmenu(void)
         config.p32x_sprlim ^= 1;
         break;
 
-      case 12:
-        config.p32x_ym2612 ^= 1;
-        break;
-
-      case 13:
-        config.p32x_fm_filter ^= 1;
-        break;
-
-      case 14:
-        /* OFF, 10% ... 90% */
-        config.p32x_lowpass = (config.p32x_lowpass >= 90) ? 0 : (config.p32x_lowpass / 10 + 1) * 10;
-        break;
-
       case -1:
         GUI_DeleteMenu(m);
         /* PicoDrive takes them at the next frame of a 32X game (the
@@ -1626,6 +1611,7 @@ static void m68k_overclock_labels(gui_item *items)
 {
   overclock_labels(items, 12, "Main 68k", config.m68k_overclock, config.m68k_auto_overclock, "Adjust Mega Drive /Genesis CPU clock speed");
   overclock_labels(items, 14, "Sub 68k", config.s68k_overclock, config.s68k_auto_overclock, "Adjust Sega CD / Mega-CD CPU clock speed");
+  overclock_labels(items, 16, "Z80", config.z80_overclock, config.z80_auto_overclock, "Adjust Z80 CPU clock speed");
 }
 
 /* the ratio of one 68k (the automatic overclock needs one to go up to) */
@@ -1722,19 +1708,14 @@ static void systemmenu ()
 
   m68k_overclock_labels(items);
 
-  if (config.z80_overclock > 1.0)
-    sprintf (items[16].text, "Z80 Overclock: %1.1fx", config.z80_overclock);
-  else
-    sprintf (items[16].text, "Z80 Overclock: OFF");
-
   if (svp)
   {
-    sprintf (items[18].text, "SVP Cycles: %d", SVP_cycles);
-    m->max_items = 19;
+    sprintf (items[19].text, "SVP Cycles: %d", SVP_cycles);
+    m->max_items = 20;
   }
   else
   {
-    m->max_items = 18;
+    m->max_items = 19;
   }
 
   GUI_InitMenu(m);
@@ -2041,15 +2022,19 @@ static void systemmenu ()
 
       case 16:  /*** Z80 Overclock ***/
       {
-        GUI_OptionBox(m,0,"Z80 Overclock Ratio",(void *)&config.z80_overclock,0.1,1.0,15.0,0);
-        if (config.z80_overclock > 1.0)
-          sprintf (items[16].text, "Z80 Overclock: %1.1fx", config.z80_overclock);
-        else
-          sprintf (items[16].text, "Z80 Overclock: OFF");
+        overclock_ratio_box(m, "Z80", &config.z80_overclock, config.z80_auto_overclock, 15.0);
+        m68k_overclock_labels(items);
         break;
       }
 
-      case 17:  /*** 32X settings (PicoDrive) ***/
+      case 17:  /*** Z80 Auto Overclock ***/
+      {
+        overclock_auto_toggle(&config.z80_auto_overclock, &config.z80_overclock);
+        m68k_overclock_labels(items);
+        break;
+      }
+
+      case 18:  /*** 32X settings (PicoDrive) ***/
       {
         GUI_DeleteMenu(m);
         pico32xmenu();
@@ -2057,10 +2042,10 @@ static void systemmenu ()
         break;
       }
 
-      case 18:  /*** SVP cycles per line ***/
+      case 19:  /*** SVP cycles per line ***/
       {
         GUI_OptionBox(m,0,"SVP Cycles",(void *)&SVP_cycles,1,1,1500,1);
-        sprintf (items[18].text, "SVP Cycles: %d", SVP_cycles);
+        sprintf (items[19].text, "SVP Cycles: %d", SVP_cycles);
         break;
       }
 
@@ -2133,7 +2118,7 @@ static void systemmenu ()
   /* Initialize CPU overclock ratio (an automatic one turned on starts from none) */
   autooc_apply(&autooc, config.m68k_auto_overclock, config.m68k_overclock);
   autooc_apply(&autooc_sub, config.s68k_auto_overclock, config.s68k_overclock);
-  z80_cycle_ratio  = (100 << Z80_OVERCLOCK_SHIFT) / (int)(config.z80_overclock * 100.0);
+  autooc_apply_z80(config.z80_auto_overclock, config.z80_overclock);
 
   /* a 32X game takes the region again (PicoDrive) */
   pico32x_options_changed();
@@ -3805,7 +3790,7 @@ static void optionmenu(void)
           /* the global CPU overclock from now on */
           autooc_apply(&autooc, config.m68k_auto_overclock, config.m68k_overclock);
           autooc_apply(&autooc_sub, config.s68k_auto_overclock, config.s68k_overclock);
-          z80_cycle_ratio  = (100 << Z80_OVERCLOCK_SHIFT) / (int)(config.z80_overclock * 100.0);
+          autooc_apply_z80(config.z80_auto_overclock, config.z80_overclock);
         }
         pergame_icon(&m->items[5], 1);
         break;

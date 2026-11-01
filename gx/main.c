@@ -361,8 +361,8 @@ void reloadrom(void)
   /* Initialize CPU overclock ratio (the automatic one starts from none) */
   autooc_apply(&autooc, config.m68k_auto_overclock, config.m68k_overclock);
   autooc_apply(&autooc_sub, config.s68k_auto_overclock, config.s68k_overclock);
+  autooc_apply_z80(config.z80_auto_overclock, config.z80_overclock);
   autooc_reset();
-  z80_cycle_ratio  = (100 << Z80_OVERCLOCK_SHIFT) / (int)(config.z80_overclock * 100.0);
 
   /* Auto-Load Backup RAM */
   slot_autoload(0,config.s_device);

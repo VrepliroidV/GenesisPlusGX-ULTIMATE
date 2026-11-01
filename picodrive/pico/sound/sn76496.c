@@ -24,6 +24,10 @@
 
 #define MAX_OUTPUT 0x4800 // was 0x7fff
 
+#ifdef GPGX_ULTIMATE
+extern int gx_psg_gain; /* PSG volume of Genesis Plus GX ULTIMATE (sound.c) */
+#endif
+
 #define STEP 0x10000
 
 
@@ -211,6 +215,9 @@ void SN76496Update(short *buffer, int length, int stereo)
 			if (out > MAX_OUTPUT * STEP) out = MAX_OUTPUT * STEP;
 
 			out /= STEP; // will be optimized to shift; max 0x4800 = 18432
+#ifdef GPGX_ULTIMATE
+			out = (out * gx_psg_gain) >> 8;
+#endif
 			*buffer++ += out;
 			if (stereo) *buffer++ += out;
 		} else {
@@ -227,6 +234,10 @@ void SN76496Update(short *buffer, int length, int stereo)
 
 			outl /= STEP; // will be optimized to shift; max 0x4800 = 18432
 			outr /= STEP; // will be optimized to shift; max 0x4800 = 18432
+#ifdef GPGX_ULTIMATE
+			outl = (outl * gx_psg_gain) >> 8;
+			outr = (outr * gx_psg_gain) >> 8;
+#endif
 			*buffer++ += outl;
 			*buffer++ += outr;
 		}

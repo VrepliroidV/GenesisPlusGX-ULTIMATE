@@ -1,12 +1,14 @@
 /****************************************************************************
  *  autooc.c
  *
- *  Automatic 68k overclock (main 68k and Mega CD sub 68k)
+ *  Automatic CPU overclock (main 68k, Mega CD sub 68k, and the Z80 when it
+ *  is the CPU of the game: Master System, Game Gear, SG-1000)
  *
- *  Each frame the time a 68k spends waiting is measured: STOP, the polling
- *  of the other CPU's registers that the core already detects (Mega CD), and
- *  short loops that keep branching back to the same place with the same
- *  registers (a game polling a flag or the VDP status until the next frame).
+ *  Each frame the time a CPU spends waiting is measured: STOP (68k) or HALT
+ *  (Z80), the polling of the other CPU's registers that the core already
+ *  detects (Mega CD), and short loops that keep branching back to the same
+ *  place with the same registers (a game polling a flag or the VDP status
+ *  until the next frame).
  *  A 68k that does not wait at all within a frame is running late, and when
  *  that happens again its overclock goes up one level; when the frames would
  *  still have time left at the level below, it goes down again. The levels go
@@ -46,14 +48,30 @@
    ran something else (a routine called from the loop, DMA) */
 t_autooc autooc     = { .cpu = &m68k, .spin_turn_max = 100 * 7, .down_hold = DOWN_HOLD };
 t_autooc autooc_sub = { .cpu = &s68k, .spin_turn_max = 100 * 4, .down_hold = DOWN_HOLD };
+t_autooc autooc_z80 = { .cpu = NULL, .spin_turn_max = 100 * 15, .down_hold = DOWN_HOLD };
+
+/* the Z80's cycle ratio for an overclock ratio */
+static void z80_ratio(float ratio)
+{
+#ifdef Z80_OVERCLOCK_SHIFT
+  z80_cycle_ratio = (100 << Z80_OVERCLOCK_SHIFT) / (int)(ratio * 100.0 + 0.5);
+#endif
+}
 
 static int sound_writes; /* writes to the Z80 RAM this frame */
 
 static void set_level(t_autooc *oc, int level)
 {
   oc->level = level;
+  if (!oc->cpu)
+  {
+    z80_ratio(oc->ratio[level]);
+  }
 #ifdef M68K_OVERCLOCK_SHIFT
-  oc->cpu->cycle_ratio = (100 << M68K_OVERCLOCK_SHIFT) / (int)(oc->ratio[level] * 100.0 + 0.5);
+  else
+  {
+    oc->cpu->cycle_ratio = (100 << M68K_OVERCLOCK_SHIFT) / (int)(oc->ratio[level] * 100.0 + 0.5);
+  }
 #endif
   oc->lag_history = 0;
   oc->roomy = 0;
@@ -79,6 +97,7 @@ static void calm_all(int frames)
 {
   calm(&autooc, frames);
   calm(&autooc_sub, frames);
+  calm(&autooc_z80, frames);
 }
 
 static void reset_one(t_autooc *oc)
@@ -108,6 +127,7 @@ void autooc_reset(void)
   sound_writes = 0;
   reset_one(&autooc);
   reset_one(&autooc_sub);
+  reset_one(&autooc_z80);
 }
 
 void autooc_apply(t_autooc *oc, int automatic, float max_ratio)
@@ -142,9 +162,60 @@ void autooc_apply(t_autooc *oc, int automatic, float max_ratio)
 
   oc->enabled = 0;
   oc->level = 0;
+  if (!oc->cpu)
+  {
+    z80_ratio(max_ratio);
+  }
 #ifdef M68K_OVERCLOCK_SHIFT
-  oc->cpu->cycle_ratio = (100 << M68K_OVERCLOCK_SHIFT) / (int)(max_ratio * 100.0);
+  else
+  {
+    oc->cpu->cycle_ratio = (100 << M68K_OVERCLOCK_SHIFT) / (int)(max_ratio * 100.0);
+  }
 #endif
+}
+
+void autooc_apply_z80(int automatic, float max_ratio)
+{
+  /* the Z80 of a Mega Drive (or Mega CD) game plays the sound: an overclock
+     coming and going would only change the samples it plays */
+  if (automatic && ((system_hw & SYSTEM_PBC) == SYSTEM_MD))
+  {
+    autooc_apply(&autooc_z80, 0, 1.0);
+    return;
+  }
+  autooc_apply(&autooc_z80, automatic, max_ratio);
+}
+
+void autooc_spin_z80(unsigned int target)
+{
+  t_autooc *oc = &autooc_z80;
+  const int now = Z80.cycles;
+  unsigned int regs[7];
+
+  /* the registers a polling loop keeps (not the PC, nor R) */
+  regs[0] = Z80.af.d;
+  regs[1] = Z80.bc.d;
+  regs[2] = Z80.de.d;
+  regs[3] = Z80.hl.d;
+  regs[4] = Z80.ix.d;
+  regs[5] = Z80.iy.d;
+  regs[6] = Z80.sp.d;
+
+  if ((target == oc->spin_target) && !memcmp(oc->spin_regs, regs, sizeof(regs)))
+  {
+    int d = now - oc->spin_last;
+    if ((d > 0) && (d <= oc->spin_turn_max))
+    {
+      oc->idle += d;
+    }
+  }
+  else
+  {
+    oc->spin_target = target;
+    memcpy(oc->spin_regs, regs, sizeof(regs));
+  }
+
+  oc->spin_last = now;
 }
 
 void autooc_spin(t_autooc *oc, unsigned int target)

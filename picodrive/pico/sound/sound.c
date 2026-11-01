@@ -21,6 +21,13 @@
 
 void (*PsndMix_32_to_16)(s16 *dest, s32 *src, int count) = mix_32_to_16_stereo;
 
+#ifdef GPGX_ULTIMATE
+/* Genesis Plus GX ULTIMATE: the FM (DAC included) and PSG volumes of its
+   audio settings, 256 = PicoDrive's own levels (gx/pico32x.c) */
+int gx_fm_gain = 256;
+int gx_psg_gain = 256;
+#endif
+
 // master int buffer to mix to
 // +1 for a fill triggered by an instruction overhanging into the next scanline
 static s32 PsndBuffer[2*(54000+100)/50+2];
@@ -231,6 +238,9 @@ PICO_INTERNAL void PsndDoDAC(int cyc_to)
 {
   int pos, len;
   int dout = ym2612.dacout;
+#ifdef GPGX_ULTIMATE
+  dout = (dout * gx_fm_gain) >> 8;
+#endif
 
   // nothing to do if sound is off
   if (!PicoIn.sndOut) return;

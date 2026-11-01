@@ -3780,7 +3780,7 @@ static void optionmenu(void)
         {
           if (gamesettings_enable())
           {
-            GUI_WaitPrompt("Per-Game Settings","Now kept for this game only");
+            GUI_WaitPrompt("Per-Game Settings","Changes kept for this game only");
           }
         }
         else if (GUI_WaitConfirm("Per-Game Settings","Use the global settings again ?"))

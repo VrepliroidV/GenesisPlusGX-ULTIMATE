@@ -113,9 +113,11 @@ static const t_game_field fields[] =
 
 #define FIELD_COUNT (sizeof(fields) / sizeof(fields[0]))
 
-/* global values of the fields while a game uses its own, one after the
-   other (a whole t_config would take about 80 KB of the nearly full MEM1) */
+/* global values of the fields, one after the other (a whole t_config would
+   take about 80 KB of the nearly full MEM1): taken when a game is loaded, so
+   what is changed afterwards can still go to that game alone */
 static u8 globals[512];
+static int globals_taken = 0;
 static int active = 0;
 
 static size_t field_size(const t_game_field *f)
@@ -284,10 +286,13 @@ void gamesettings_load(void)
     move_globals(RESTORE);
     active = 0;
   }
+  globals_taken = 0;
 
   if (game_path(path, sizeof(path)))
   {
+    /* the global options as the game starts with them */
     move_globals(STORE);
+    globals_taken = 1;
     if (read_game_file(path))
     {
       active = 1;
@@ -328,8 +333,14 @@ int gamesettings_enable(void)
     return 0;
   }
 
-  /* the current values are the global ones */
-  move_globals(STORE);
+  /* the options changed since the game was loaded are the game's own: the
+     global ones stay as they were then (they are also what config.ini gets
+     back, if it was written with the changes in between) */
+  if (!globals_taken)
+  {
+    move_globals(STORE);
+    globals_taken = 1;
+  }
   active = 1;
   gamesettings_save();
   return 1;

@@ -37,6 +37,12 @@
  *      they get it, and some reset themselves after a second without it;
  *   3. the player LED message;
  *   4. interrupt IN reads.
+ * When the reads of a pad fail (a wireless pad that went to sleep and woke up
+ * again), the input endpoint is cleared and the vendor request and the LED
+ * message are sent again before reading; after many failures in a row the
+ * device is closed and opened again, as if the receiver had been plugged in
+ * again. A device that cannot be opened, or whose descriptors IOS refuses, is
+ * tried again a little later instead of being given up.
  * Callbacks run in the IPC interrupt handler; they only copy data and set
  * flags. Closing and logging happen in XInput_Update() on the main thread.
  */
@@ -63,6 +69,9 @@
 #define XI_SETTLE_FRAMES     30     /* wait after the device list changes before opening */
 #define XI_RETRY_WAIT        15     /* updates before restarting a failed read */
 #define XI_RETRY_WAIT_MAX    120    /* longest wait between restarts (~2 s) */
+#define XI_REOPEN_ERRORS     10     /* failed reads in a row before the device is opened again */
+#define XI_DEFER_MAX         8
+#define XI_DEFER_SCANS_MAX   32     /* longest wait before opening a device again (~16 s) */
 #define XI_BUF_SIZE          64
 #define XI_REPORT_MIN        14     /* bytes up to the right stick */
 
@@ -75,11 +84,12 @@
 #define XI_IF_SUBCLASS       0x5D
 #define XI_IF_PROTOCOL       0x01
 
-/* start-up steps */
-#define STEP_GETCFG 0
-#define STEP_SETCFG 1
-#define STEP_MAGIC  2
-#define STEP_READY  3
+/* start-up steps (STEP_CLEARHALT only when reads failed) */
+#define STEP_GETCFG    0
+#define STEP_SETCFG    1
+#define STEP_MAGIC     2
+#define STEP_READY     3
+#define STEP_CLEARHALT 4
 
 #ifdef XINPUT_USB_LOG
 #define XI_LOG_MAX_LINES     400
@@ -102,6 +112,7 @@ typedef struct
 	u16 step_wait;
 	u16 retry_wait;
 	u16 errors;
+	u16 recoveries;
 	u32 reports_at_restart;
 	u32 prev_held;
 	bool logged_first;
@@ -122,6 +133,10 @@ typedef struct
 	volatile u8 trigger_partial; /* a trigger was half pressed */
 	volatile u8 first_len;
 	u8 first_raw[20];
+	volatile u32 others;         /* messages that are not input reports */
+	volatile u8 other_len;
+	u8 other_raw[8];
+	u32 others_logged;
 } XiPad;
 
 static XiPad pads[XI_MAX_PADS];
@@ -131,6 +146,17 @@ static u8 ATTRIBUTE_ALIGN(32) ctrlbuf[XI_MAX_PADS][32];
 
 static s32 rejected[XI_REJECT_MAX];
 static int num_rejected = 0;
+
+/* devices that could not be opened yet: tried again after a wait that
+   doubles each time */
+typedef struct
+{
+	s32 key;
+	u8 tries;
+	u8 scans_left;
+} XiDefer;
+static XiDefer deferred[XI_DEFER_MAX];
+static int num_deferred = 0;
 static bool started = false;
 static bool usb_init_tried = false;
 static bool replug_needed = false;
@@ -138,6 +164,7 @@ static bool have_signature = false;
 static u32 list_signature = 0;
 static u32 frames_to_scan = 0;
 static volatile u8 rescan_requested = 1;
+static u8 reopens = 0;          /* devices opened again since a pad last sent reports */
 
 /* Vendors known to ship XInput devices. Anything else on the bus (USB drives,
    network adapters) is never opened. The interface check still decides. */
@@ -451,6 +478,13 @@ static s32 read_cb(s32 result, void *usrdata)
 		}
 		p->reports++;
 	}
+	else if (result > 0)
+	{
+		int n = result < (s32) sizeof(p->other_raw) ? result : (s32) sizeof(p->other_raw);
+		memcpy(p->other_raw, b, n);
+		p->other_len = (u8) n;
+		p->others++;
+	}
 
 	if (USB_ReadIntrMsgAsync(p->fd, p->ep_in, p->in_len, b, read_cb, usrdata) < 0)
 	{
@@ -543,6 +577,78 @@ static void prune_rejected(const usb_device_entry *list, u8 count)
 			rejected[kept++] = rejected[i];
 	}
 	num_rejected = kept;
+}
+
+static XiDefer *find_deferred(s32 key)
+{
+	for (int i = 0; i < num_deferred; i++)
+		if (deferred[i].key == key)
+			return &deferred[i];
+	return NULL;
+}
+
+/* not now: try again later, waiting twice as long as the last time */
+static void defer(s32 key)
+{
+	XiDefer *d = find_deferred(key);
+	if (d == NULL)
+	{
+		if (num_deferred >= XI_DEFER_MAX)
+		{
+			reject(key);
+			return;
+		}
+		d = &deferred[num_deferred++];
+		d->key = key;
+		d->tries = 0;
+	}
+	if (d->tries < 8)
+		d->tries++;
+	u32 scans = 1u << d->tries;
+	d->scans_left = scans > XI_DEFER_SCANS_MAX ? XI_DEFER_SCANS_MAX : (u8) scans;
+	xi_log("  tried again in %u s", (d->scans_left * XI_SCAN_INTERVAL) / 60);
+}
+
+static void undefer(s32 key)
+{
+	for (int i = 0; i < num_deferred; i++)
+	{
+		if (deferred[i].key == key)
+		{
+			deferred[i] = deferred[--num_deferred];
+			return;
+		}
+	}
+}
+
+static bool is_deferred(s32 key)
+{
+	XiDefer *d = find_deferred(key);
+	return d != NULL && d->scans_left > 0;
+}
+
+/* one device list check went by */
+static void tick_deferred(void)
+{
+	for (int i = 0; i < num_deferred; i++)
+		if (deferred[i].scans_left > 0)
+			deferred[i].scans_left--;
+}
+
+/* Forget deferred entries that are no longer on the bus. */
+static void prune_deferred(const usb_device_entry *list, u8 count)
+{
+	int kept = 0;
+	for (int i = 0; i < num_deferred; i++)
+	{
+		bool present = false;
+		for (int k = 0; k < count; k++)
+			if (entry_key(&list[k]) == deferred[i].key)
+				present = true;
+		if (present)
+			deferred[kept++] = deferred[i];
+	}
+	num_deferred = kept;
 }
 
 static bool is_attached(s32 device_id, u16 vid, u16 pid)
@@ -671,7 +777,7 @@ static void try_attach(const usb_device_entry *e)
 	if (ret < 0)
 	{
 		xi_log("  open failed (%d)", ret);
-		reject(entry_key(e));
+		defer(entry_key(e));
 		return;
 	}
 
@@ -680,13 +786,16 @@ static void try_attach(const usb_device_entry *e)
 	ret = USB_GetDescriptors(fd, &dd);
 	if (ret < 0)
 	{
-		/* IOS sometimes refuses this until the device is plugged in again */
-		xi_log("  descriptors failed (%d): replug the receiver", ret);
+		/* IOS sometimes refuses this for a while, sometimes until the device
+		   is plugged in again */
+		xi_log("  descriptors failed (%d)", ret);
 		replug_needed = true;
 		USB_CloseDevice(&fd);
-		reject(entry_key(e));
+		defer(entry_key(e));
 		return;
 	}
+
+	undefer(entry_key(e));
 
 	bool is_360_id = e->vid == 0x045e && e->pid == 0x028e;
 	XiIface f;
@@ -751,7 +860,12 @@ static void start_read(int idx)
 
 	/* reports arrived since the last restart: the pad works, reset backoff */
 	if (p->reports != p->reports_at_restart)
+	{
+		if (p->errors > 0)
+			xi_log("port %d: reports again after %u failed reads", p->port + 1, p->errors);
 		p->errors = 0;
+		reopens = 0;
+	}
 	p->reports_at_restart = p->reports;
 
 	p->reading = 1;
@@ -799,6 +913,9 @@ static void issue_ctrl(int idx, u8 reqtype, u8 req, u16 value, u16 index, u16 le
 	}
 }
 
+/* a line of the start-up log, left out while a sleeping pad keeps failing */
+#define XI_TALK(...) do { if (talk) xi_log(__VA_ARGS__); } while (0)
+
 /* One start-up step per call: send the request, then wait for its answer
    or XI_STEP_TIMEOUT updates, then move on whatever the outcome. */
 static void run_startup(int idx)
@@ -806,6 +923,9 @@ static void run_startup(int idx)
 	XiPad *p = &pads[idx];
 	int port = p->port + 1;
 	(void) port; /* only used by the log */
+	/* while a sleeping pad's reads keep failing, only some rounds are logged */
+	bool talk = p->recoveries <= 3 || (p->errors % 20) == 0;
+	(void) talk;
 
 	if (!p->step_sent)
 	{
@@ -822,6 +942,20 @@ static void run_startup(int idx)
 		case STEP_MAGIC:
 			issue_ctrl(idx, USB_CTRLTYPE_DIR_DEVICE2HOST | USB_CTRLTYPE_TYPE_VENDOR | USB_CTRLTYPE_REC_INTERFACE,
 				0x01, 0x0100, 0, 20);
+			break;
+		case STEP_CLEARHALT:
+			if (p->fd >= 0x20 || p->fd < -1)
+			{
+				/* USBv5: IOS has no CLEAR_FEATURE for us, cancelling the
+				   endpoint is what clears it (as libogc's USB_ClearHalt) */
+				s32 r = USB_ClearHalt(p->fd, p->ep_in);
+				XI_TALK("port %d: input endpoint cleared (%d)", port, r);
+				(void) r;
+				p->step = STEP_MAGIC;
+				return;
+			}
+			issue_ctrl(idx, USB_CTRLTYPE_DIR_HOST2DEVICE | USB_CTRLTYPE_TYPE_STANDARD | USB_CTRLTYPE_REC_ENDPOINT,
+				USB_REQ_CLEARFEATURE, USB_FEATURE_ENDPOINT_HALT, p->ep_in, 0);
 			break;
 		}
 		return;
@@ -843,32 +977,37 @@ static void run_startup(int idx)
 	case STEP_GETCFG:
 		if (timed_out)
 		{
-			xi_log("port %d: GET_CONFIGURATION: no answer", port);
+			XI_TALK("port %d: GET_CONFIGURATION: no answer", port);
 			p->step = STEP_MAGIC;
 		}
 		else if (r >= 1 && ctrlbuf[idx][0] == p->config)
 		{
-			xi_log("port %d: configuration %u already set", port, ctrlbuf[idx][0]);
+			XI_TALK("port %d: configuration %u already set", port, ctrlbuf[idx][0]);
 			p->step = STEP_MAGIC;
 		}
 		else
 		{
-			xi_log("port %d: GET_CONFIGURATION result %d, value %u", port, r, ctrlbuf[idx][0]);
+			XI_TALK("port %d: GET_CONFIGURATION result %d, value %u", port, r, ctrlbuf[idx][0]);
 			p->step = STEP_SETCFG;
 		}
 		break;
 
 	case STEP_SETCFG:
 		if (timed_out)
-			xi_log("port %d: SET_CONFIGURATION: no answer", port);
+			XI_TALK("port %d: SET_CONFIGURATION: no answer", port);
 		else
-			xi_log("port %d: SET_CONFIGURATION result %d", port, r);
+			XI_TALK("port %d: SET_CONFIGURATION result %d", port, r);
+		p->step = STEP_MAGIC;
+		break;
+
+	case STEP_CLEARHALT:
+		XI_TALK("port %d: CLEAR_FEATURE %s %d", port, timed_out ? "no answer" : "result", r);
 		p->step = STEP_MAGIC;
 		break;
 
 	case STEP_MAGIC:
 		if (timed_out)
-			xi_log("port %d: start-up request: no answer", port);
+			XI_TALK("port %d: start-up request: no answer", port);
 		else if (r > 0)
 		{
 			char hex[3 * 20 + 1];
@@ -876,10 +1015,10 @@ static void run_startup(int idx)
 			for (int i = 0; i < n; i++)
 				sprintf(hex + 3 * i, "%02x ", ctrlbuf[idx][i]);
 			hex[3 * n] = 0;
-			xi_log("port %d: start-up request answered (%d bytes): %s", port, r, hex);
+			XI_TALK("port %d: start-up request answered (%d bytes): %s", port, r, hex);
 		}
 		else
-			xi_log("port %d: start-up request result %d", port, r);
+			XI_TALK("port %d: start-up request result %d", port, r);
 		p->step = STEP_READY;
 		send_led(idx);
 		break;
@@ -912,12 +1051,33 @@ static void service_pad(int idx)
 		}
 		if (p->read_result < 0)
 		{
-			/* Some receivers fail reads while their controller is off. Keep
-			   retrying, more slowly, and log only the first few. */
-			if (p->errors < 5)
+			/* Some receivers fail reads while their controller is off (asleep).
+			   Keep retrying, more slowly, and log only some of them. */
+			if (p->errors < 5 || (p->errors % 20) == 0)
 				xi_log("port %d: read error %d, retrying", p->port + 1, p->read_result);
 			p->read_result = 0;
 			p->errors++;
+			p->reports_at_restart = p->reports; /* only reports from now on reset the count */
+
+			/* Still failing: the device is opened again from scratch, as when
+			   the receiver is plugged in again. */
+			/* (each time later while it keeps failing: a receiver whose pad is
+			   off for a long time is not opened again every few seconds) */
+			if (p->errors >= (XI_REOPEN_ERRORS << (reopens < 4 ? reopens : 4)))
+			{
+				if (reopens < 255)
+					reopens++;
+				close_pad(idx, "reads keep failing, opened again");
+				return;
+			}
+
+			/* A pad coming back from sleep may find its endpoint halted, or
+			   want the start-up messages again: clear the endpoint, send the
+			   vendor request and the LED message, then read. */
+			p->recoveries++;
+			p->step = STEP_CLEARHALT;
+			p->step_sent = false;
+			return;
 		}
 		start_read(idx);
 		if (!p->reading)
@@ -942,6 +1102,25 @@ static void service_pad(int idx)
 			sprintf(hex + 3 * i, "%02x ", p->first_raw[i]);
 		hex[3 * n] = 0;
 		xi_log("port %d: first report (%d bytes): %s", p->port + 1, n, hex);
+	}
+
+	/* messages that are not input reports (LED state, connection notices):
+	   the first ones are logged, they tell what a receiver does when its pad
+	   goes to sleep or wakes up */
+	if (p->others != p->others_logged)
+	{
+		p->others_logged = p->others;
+		static int others_shown = 0;
+		if (others_shown < 30)
+		{
+			others_shown++;
+			char hex[3 * 8 + 1];
+			int n = p->other_len;
+			for (int i = 0; i < n; i++)
+				sprintf(hex + 3 * i, "%02x ", p->other_raw[i]);
+			hex[3 * n] = 0;
+			xi_log("port %d: message (%d bytes): %s", p->port + 1, n, hex);
+		}
 	}
 
 	u32 held = p->held;
@@ -1023,6 +1202,7 @@ static void scan_devices(void)
 		have_signature = true;
 		list_signature = sig;
 		prune_rejected(list, count);
+		prune_deferred(list, count);
 
 		xi_log("device list (%u):", count);
 		for (int i = 0; i < count; i++)
@@ -1054,12 +1234,13 @@ static void scan_devices(void)
 		return;
 	}
 
+	tick_deferred();
 	for (int i = 0; i < count; i++)
 	{
 		const usb_device_entry *e = &list[i];
 		if (!known_vendor(e->vid))
 			continue;
-		if (is_attached(e->device_id, e->vid, e->pid) || is_rejected(entry_key(e)))
+		if (is_attached(e->device_id, e->vid, e->pid) || is_rejected(entry_key(e)) || is_deferred(entry_key(e)))
 			continue;
 		try_attach(e);
 	}

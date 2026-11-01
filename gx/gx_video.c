@@ -1974,6 +1974,45 @@ void gxTextureWritePNG(gx_texture *texture, FILE *png_file)
 }
 
 
+/* GPGX ULTIMATE: makes a picture round, as the printed label of a disc (the
+   screenshots of the Sega CD games). Drawn into a w x h area, its pixels out
+   of the circle of radius r around the area's centre, or in the hole of
+   radius hole, get transparent, with a soft edge of one screen pixel. */
+void gxTextureRound(gx_texture *texture, int w, int h, float r, float hole)
+{
+  int x, y;
+  float sx, sy;
+  int tiles;
+
+  if (!texture || !texture->data || (texture->format != GX_TF_RGBA8) || !w || !h)
+    return;
+
+  sx = (float)w / texture->width;
+  sy = (float)h / texture->height;
+  tiles = texture->width >> 2;
+
+  for (y = 0; y < texture->height; y++)
+  {
+    float dy = (y + 0.5f) * sy - h * 0.5f;
+    for (x = 0; x < texture->width; x++)
+    {
+      float dx = (x + 0.5f) * sx - w * 0.5f;
+      float d = sqrtf(dx * dx + dy * dy);
+      float a = r - d + 0.5f;
+      float b = d - hole + 0.5f;
+      u8 *alpha;
+      if (b < a) a = b;
+      if (a >= 1.0f) continue;
+
+      /* GX_TF_RGBA8: 4x4 pixel tiles of 64 bytes, alpha and red first */
+      alpha = texture->data + (((y >> 2) * tiles + (x >> 2)) << 6) + ((((y & 3) << 2) | (x & 3)) << 1);
+      *alpha = (a <= 0.0f) ? 0 : (u8)(*alpha * a);
+    }
+  }
+
+  DCFlushRange(texture->data, texture->width * texture->height * 4);
+}
+
 void gxTextureClose(gx_texture **p_texture)
 {
   gx_texture *texture = *p_texture;

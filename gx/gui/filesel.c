@@ -56,6 +56,8 @@
 #include "Cart_gg_png.h"
 #include "Cart_sg_png.h"
 #include "Cart_32x_png.h"
+#include "Cart_cd_png.h"
+#include "Disc_cd_png.h"
 
 FILEENTRIES filelist[MAXFILES];
 
@@ -116,7 +118,7 @@ static gui_image bg_filesel[15] =
   {NULL,Snap_empty_png,IMAGE_VISIBLE,424,148,160,112,255},
   {NULL,NULL,0,424,148,160,112,255},
   {NULL,NULL,0,388,147,240,152,255},
-  {NULL,NULL,0,388,147,240,152,255},
+  {NULL,NULL,0,412,126,200,200,255},
   {NULL,NULL,0,392,118,232,148,255},
   {NULL,NULL,0,414,116,184,188,255},
   {NULL,NULL,0,416,144,180,228,255},
@@ -134,22 +136,59 @@ static gui_image bg_filesel[15] =
 #define SNAP_32X_W 150
 #define SNAP_32X_H 100
 
+/* Sega CD: a disc (bg_filesel[10], drawn over the screenshot) with the
+   screenshot round as its label, a blank disc under it (bg_filesel[7]) */
+#define DISC_X 412          /* Disc_cd.png and Cart_cd.png, 200x200 */
+#define DISC_Y 126
+#define DISC_SIZE 200
+#define DISC_CX (DISC_X + 96)
+#define DISC_CY (DISC_Y + 96)
+#define CD_LABEL_R 88       /* the screenshot's circle */
+#define CD_HOLE_R 9         /* the hole in the middle */
+#define SNAP_CD_H (2 * CD_LABEL_R)
+#define SNAP_CD_W 252       /* 10:7, as the cartridge labels */
+
 static void set_snap_area(int type)
 {
-  int i;
-  for (i = 7; i <= 8; i++)
+  const u8 *empty = (type == FILETYPE_CD) ? Disc_cd_png : Snap_empty_png;
+
+  if (type == FILETYPE_CD)
   {
-    bg_filesel[i].x = (type == FILETYPE_32X) ? SNAP_32X_X : SNAP_X;
-    bg_filesel[i].y = (type == FILETYPE_32X) ? SNAP_32X_Y : SNAP_Y;
-    bg_filesel[i].w = (type == FILETYPE_32X) ? SNAP_32X_W : SNAP_W;
-    bg_filesel[i].h = (type == FILETYPE_32X) ? SNAP_32X_H : SNAP_H;
+    bg_filesel[7].x = DISC_X;
+    bg_filesel[7].y = DISC_Y;
+    bg_filesel[7].w = DISC_SIZE;
+    bg_filesel[7].h = DISC_SIZE;
+    bg_filesel[8].x = DISC_CX - SNAP_CD_W / 2;
+    bg_filesel[8].y = DISC_CY - SNAP_CD_H / 2;
+    bg_filesel[8].w = SNAP_CD_W;
+    bg_filesel[8].h = SNAP_CD_H;
   }
+  else
+  {
+    int i;
+    for (i = 7; i <= 8; i++)
+    {
+      bg_filesel[i].x = (type == FILETYPE_32X) ? SNAP_32X_X : SNAP_X;
+      bg_filesel[i].y = (type == FILETYPE_32X) ? SNAP_32X_Y : SNAP_Y;
+      bg_filesel[i].w = (type == FILETYPE_32X) ? SNAP_32X_W : SNAP_W;
+      bg_filesel[i].h = (type == FILETYPE_32X) ? SNAP_32X_H : SNAP_H;
+    }
+  }
+
+  /* no screenshot: TV noise, a blank disc for the Sega CD (the texture is
+     changed here once the menu shows it, else when the menu opens) */
+  if (bg_filesel[7].texture && (bg_filesel[7].data != empty))
+  {
+    gxTextureClose(&bg_filesel[7].texture);
+    bg_filesel[7].texture = gxTextureOpenPNG(empty, 0);
+  }
+  bg_filesel[7].data = empty;
 }
 
 static const u8 *Cart_png[FILETYPE_MAX] =
 {
   Cart_md_png,
-  Cart_md_png,
+  Cart_cd_png,
   Cart_ms_png,
   Cart_gg_png,
   Cart_sg_png,
@@ -565,6 +604,11 @@ int FileSelector(int type)
           bg_filesel[8].texture = gxTextureOpenPNG(0,snap);
           if (bg_filesel[8].texture)
           {
+            /* Sega CD game: the screenshot is the round label of the disc */
+            if (bg_filesel[7].data == Disc_cd_png)
+            {
+              gxTextureRound(bg_filesel[8].texture, bg_filesel[8].w, bg_filesel[8].h, CD_LABEL_R, CD_HOLE_R);
+            }
             bg_filesel[8].state |= IMAGE_VISIBLE;
           }
           fclose(snap);

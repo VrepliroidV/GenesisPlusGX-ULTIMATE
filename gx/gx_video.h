@@ -111,6 +111,7 @@ extern void gxSetScreen(void);
 extern gx_texture *gxTextureOpenPNG(const u8 *png_data, FILE *png_file);
 extern void gxTextureWritePNG(gx_texture *p_texture, FILE *png_file);
 extern void gxTextureClose(gx_texture **p_texture);
+extern void gxTextureRound(gx_texture *texture, int w, int h, float r, float hole); /* disc label */
 
 /* GX video engine */
 extern void gx_video_Init(void);

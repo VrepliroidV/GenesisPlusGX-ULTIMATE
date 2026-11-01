@@ -52,6 +52,14 @@ and `gx_cheat_ram()` (68k RAM and 32X SDRAM, with the recompiled code there
 dropped when it changes). PicoDrive's own cheat code (`pico/patch.c`) is not
 used.
 
+Changed (with `GPGX_ULTIMATE`), so the FM and PSG sound of the 32X games
+follows Genesis Plus GX ULTIMATE's Audio settings: `pico/sound/ym2612.c` and
+`pico/sound/sound.c` (the FM DAC) scale the FM output by `gx_fm_gain`, and
+`pico/sound/sn76496.c` the PSG output by `gx_psg_gain` (256 is PicoDrive's own
+level), which `gx/pico32x.c` sets from the FM and PSG volumes. Its YM2612 Type
+and High-Quality FM choose PicoDrive's FM chip and FM filtering, and the
+Genesis Plus GX filters and mono output are applied to the mixed sound.
+
 Not changed, used as it is: the frame skip of the libretro core
 (`picodrive_frameskip` "auto"), with `gx/pico32x.c` as the frontend's audio
 buffer status: it says which frames to skip (32X Settings > Frame Skip).

@@ -1,0 +1,35 @@
+name: Release meta.xml
+
+# Puts the meta.xml of this branch (gx/hbc/meta.xml) in the Wii .zip of a
+# published release, everything else in it kept: for a change of the
+# Homebrew Channel text only, without a new version. Run it from the
+# Actions tab (Run workflow) with the tag of the release.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag of the release (for example v1.2.1)
+        required: true
+
+jobs:
+  meta:
+    name: meta.xml of ${{ inputs.tag }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Put meta.xml in GenesisPlusGXUltimate-Wii.zip
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+        TAG: ${{ inputs.tag }}
+      run: |
+        gh release download "$TAG" -p GenesisPlusGXUltimate-Wii.zip -D old
+        mkdir pkg
+        (cd pkg && unzip -q ../old/GenesisPlusGXUltimate-Wii.zip)
+        test -f pkg/apps/genplusultimate/meta.xml
+        cp gx/hbc/meta.xml pkg/apps/genplusultimate/meta.xml
+        (cd pkg && zip -r -X "$GITHUB_WORKSPACE/GenesisPlusGXUltimate-Wii.zip" .)
+        gh release upload "$TAG" GenesisPlusGXUltimate-Wii.zip --clobber

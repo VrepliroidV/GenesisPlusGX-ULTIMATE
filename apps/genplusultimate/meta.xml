@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<app version="1">
+  <name>Genesis Plus GX ULTIMATE</name>
+  <coder>Repliroid do Futuro</coder>
+  <version>1.2.2</version>
+  <release_date>20261107</release_date>
+  <short_description>Sega Mega Drive / Genesis emulator</short_description>
+  <long_description>Genesis Plus GX ULTIMATE by Repliroid do Futuro (VrepliroidV), based on Genesis Plus GX 1.7.5: Mega Drive / Genesis, Mega CD, 32X, Master System, Game Gear and SG-1000 emulator. The 32X games run on PicoDrive, with its settings in System > 32X Settings, and Paprium with its cartridge chip from Genesis Plus GX PUNCHiUM.
+
+It also reads Xbox 360 (XInput) USB controllers and 2.4 GHz receivers plugged into the Wii, as GameCube controllers. Mode + Right opens the menu. PNG bezels around the game in 480i/480p and Auto Crop of black borders (Video settings), automatic 68k and Z80 overclock (System settings), per-game settings. Menu music from the music folder, with a mini player.
+
+Authors: Genesis Plus GX ULTIMATE by Repliroid do Futuro (VrepliroidV). Genesis Plus GX by Eke-Eke, from Genesis Plus by Charles MacDonald. PicoDrive (32X) by notaz, irixxxx, fDave and others. Paprium chip (Genesis Plus GX PUNCHiUM) by pav1388, with the PS3 port fixes by DeepDarkDaddy.</long_description>
+</app>

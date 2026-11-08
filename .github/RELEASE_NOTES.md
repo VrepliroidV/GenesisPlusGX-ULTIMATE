@@ -1,4 +1,8 @@
-**Genesis Plus GX ULTIMATE 1.2.1**: emulador de Mega Drive / Genesis, Mega CD, **32X**, Master System, Game Gear e SG-1000 para Wii, baseado no [Genesis Plus GX 1.7.5](https://github.com/ekeeke/Genesis-Plus-GX) (Eke-Eke). Os jogos de 32X rodam pelo [PicoDrive](https://github.com/irixxxx/picodrive) (notaz, irixxxx e outros). *English below.*
+**Genesis Plus GX ULTIMATE 1.2.2**: emulador de Mega Drive / Genesis, Mega CD, **32X**, Master System, Game Gear e SG-1000 para Wii, baseado no [Genesis Plus GX 1.7.5](https://github.com/ekeeke/Genesis-Plus-GX) (Eke-Eke). Os jogos de 32X rodam pelo [PicoDrive](https://github.com/irixxxx/picodrive) (notaz, irixxxx e outros). *English below.*
+
+## Novidades da 1.2.2
+
+- **Música do menu com um HD ou pendrive no USB**: as músicas agora vêm só da primeira pasta `genplusultimate/music` que tiver música: a do aparelho de onde o emulador abriu, senão a do SD, senão a do USB. Antes ele lia sempre as três, e a leitura de um HD dormindo ou lento no USB podia deixar o menu parado. Com as músicas no SD, o USB não é lido para isso. (A mesma correção do Snes9x GX ULTIMATE 1.1.6, onde a abertura às vezes ficava parada no fundo com o logo.)
 
 ## Novidades da 1.2.1
 
@@ -75,7 +79,11 @@ Nos menus, o C confirma e o B volta. Em outros controles, os gatilhos e o botão
 
 ## English
 
-**Genesis Plus GX ULTIMATE 1.2.1**: Mega Drive / Genesis, Mega CD, **32X**, Master System, Game Gear and SG-1000 emulator for Wii, based on Genesis Plus GX 1.7.5 (Eke-Eke). The 32X games run on [PicoDrive](https://github.com/irixxxx/picodrive) (notaz, irixxxx and others).
+**Genesis Plus GX ULTIMATE 1.2.2**: Mega Drive / Genesis, Mega CD, **32X**, Master System, Game Gear and SG-1000 emulator for Wii, based on Genesis Plus GX 1.7.5 (Eke-Eke). The 32X games run on [PicoDrive](https://github.com/irixxxx/picodrive) (notaz, irixxxx and others).
+
+New in 1.2.2:
+
+- **Menu music with a USB hard drive or pen drive plugged in**: the music now comes from the first `genplusultimate/music` folder that has music only: the one of the device the emulator started from, else the SD card's, else the USB drive's. All three used to be read, and the reading of an asleep or slow USB drive could hold the menu. With the music on the SD card, the USB drive is not read for it. (The same fix as in Snes9x GX ULTIMATE 1.1.6, whose start-up could stay on the background with the logo.)
 
 New in 1.2.1:
 

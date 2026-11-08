@@ -2,8 +2,8 @@
 <app version="1">
   <name>Genesis Plus GX ULTIMATE</name>
   <coder>Repliroid do Futuro</coder>
-  <version>1.2.1</version>
-  <release_date>20261101</release_date>
+  <version>1.2.2</version>
+  <release_date>20261107</release_date>
   <short_description>Sega Mega Drive / Genesis emulator</short_description>
   <long_description>Genesis Plus GX ULTIMATE by Repliroid do Futuro (VrepliroidV), based on Genesis Plus GX 1.7.5: Mega Drive / Genesis, Mega CD, 32X, Master System, Game Gear and SG-1000 emulator. The 32X games run on PicoDrive, with its settings in System > 32X Settings, and Paprium with its cartridge chip from Genesis Plus GX PUNCHiUM.
 

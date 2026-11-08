@@ -62,7 +62,9 @@ static int bufferSize;
 #define MENU_MUSIC_FOLDER   DEFAULT_PATH "/music"
 
 /* the music folder of the device the emulator started from, then of the SD
-   card and of the USB drive (the same names are listed once) */
+   card and of the USB drive: the first of them with music is listed, so a
+   USB drive is not read when the SD card has the music (an asleep or slow
+   drive could hold the menu there) */
 static const char *music_dirs[] =
 {
   MENU_MUSIC_FOLDER,
@@ -114,7 +116,7 @@ void gx_audio_Init(void)
 int gx_audio_MusicList(char (*names)[BEZEL_NAME_MAX], int max)
 {
   int i, count = 0;
-  for (i = 0; i < MUSIC_DIRS; i++)
+  for (i = 0; (i < MUSIC_DIRS) && (count == 0); i++)
   {
     count = bezel_list_ext(music_dirs[i], ".ogg", names, count, max);
   }
